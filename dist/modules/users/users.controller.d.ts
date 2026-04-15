@@ -1,0 +1,152 @@
+import { UserRole } from './entities/user.entity';
+import { CreateUserDto } from './dto/create-user.dto';
+import { CreateAssociateDto } from './dto/create-associate.dto';
+import { BulkAssignAssociatesDto, BulkAssignCustomersDto } from './dto/bulk-assign.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UsersService } from './users.service';
+type JwtRequestUser = {
+    id: string;
+    email: string;
+    role: UserRole;
+};
+export declare class UsersController {
+    private readonly usersService;
+    constructor(usersService: UsersService);
+    create(createUserDto: CreateUserDto, req: {
+        user: JwtRequestUser;
+    }): Promise<{
+        id: string;
+        email: string;
+        role: UserRole;
+        isActive: boolean;
+        firstName: string;
+        lastName: string;
+        name: string;
+        phoneNumber?: string;
+        address?: string;
+        dateOfBirth?: Date;
+        profilePhoto?: string;
+        lastActive?: Date;
+        taskAssigned?: number;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    createAssociate(createAssociateDto: CreateAssociateDto, req: {
+        user: JwtRequestUser;
+    }): Promise<{
+        id: string;
+        email: string;
+        role: UserRole;
+        isActive: boolean;
+        firstName: string;
+        lastName: string;
+        name: string;
+        phoneNumber?: string;
+        address?: string;
+        dateOfBirth?: Date;
+        profilePhoto?: string;
+        lastActive?: Date;
+        taskAssigned?: number;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    findAll(): Promise<{
+        id: string;
+        email: string;
+        role: UserRole;
+        isActive: boolean;
+        firstName: string;
+        lastName: string;
+        name: string;
+        phoneNumber?: string;
+        address?: string;
+        dateOfBirth?: Date;
+        profilePhoto?: string;
+        lastActive?: Date;
+        taskAssigned?: number;
+        createdAt: Date;
+        updatedAt: Date;
+    }[]>;
+    getMyCustomers(req: {
+        user: JwtRequestUser;
+    }): Promise<{
+        id: string;
+        email: string;
+        role: UserRole;
+        isActive: boolean;
+        firstName: string;
+        lastName: string;
+        name: string;
+        phoneNumber?: string;
+        address?: string;
+        dateOfBirth?: Date;
+        profilePhoto?: string;
+        lastActive?: Date;
+        taskAssigned?: number;
+        createdAt: Date;
+        updatedAt: Date;
+    }[]>;
+    findOne(id: string): Promise<{
+        id: string;
+        email: string;
+        role: UserRole;
+        isActive: boolean;
+        firstName: string;
+        lastName: string;
+        name: string;
+        phoneNumber?: string;
+        address?: string;
+        dateOfBirth?: Date;
+        profilePhoto?: string;
+        lastActive?: Date;
+        taskAssigned?: number;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    update(id: string, updateUserDto: UpdateUserDto): Promise<{
+        id: string;
+        email: string;
+        role: UserRole;
+        isActive: boolean;
+        firstName: string;
+        lastName: string;
+        name: string;
+        phoneNumber?: string;
+        address?: string;
+        dateOfBirth?: Date;
+        profilePhoto?: string;
+        lastActive?: Date;
+        taskAssigned?: number;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    assign(customerId: string, associateId: string): Promise<{
+        id: string;
+        email: string;
+        role: UserRole;
+        isActive: boolean;
+        firstName: string;
+        lastName: string;
+        name: string;
+        phoneNumber?: string;
+        address?: string;
+        dateOfBirth?: Date;
+        profilePhoto?: string;
+        lastActive?: Date;
+        taskAssigned?: number;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    assignCustomerToMultipleAssociates(customerId: string, body: BulkAssignAssociatesDto): Promise<{
+        customerId: string;
+        assignedAssociateIds: string[];
+        totalAssigned: number;
+    }>;
+    assignMultipleCustomersToAssociate(associateId: string, body: BulkAssignCustomersDto): Promise<{
+        associateId: string;
+        assignedCustomerIds: string[];
+        totalAssigned: number;
+    }>;
+    remove(id: string): Promise<void>;
+}
+export {};

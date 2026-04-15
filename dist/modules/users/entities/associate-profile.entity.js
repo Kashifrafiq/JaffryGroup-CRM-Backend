@@ -1,0 +1,87 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AssociateProfile = void 0;
+const typeorm_1 = require("typeorm");
+const user_entity_1 = require("./user.entity");
+let AssociateProfile = class AssociateProfile {
+    id;
+    userId;
+    user;
+    firstName;
+    lastName;
+    phoneNumber;
+    address;
+    dateOfBirth;
+    profilePhoto;
+    lastActive;
+    taskAssigned;
+    createdAt;
+    updatedAt;
+};
+exports.AssociateProfile = AssociateProfile;
+__decorate([
+    (0, typeorm_1.PrimaryGeneratedColumn)('uuid'),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "id", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ unique: true }),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "userId", void 0);
+__decorate([
+    (0, typeorm_1.OneToOne)(() => user_entity_1.User, (user) => user.associateProfile, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.JoinColumn)({ name: 'userId' }),
+    __metadata("design:type", user_entity_1.User)
+], AssociateProfile.prototype, "user", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "firstName", void 0);
+__decorate([
+    (0, typeorm_1.Column)(),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "lastName", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "phoneNumber", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "address", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", Date)
+], AssociateProfile.prototype, "dateOfBirth", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "profilePhoto", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'timestamp', nullable: true }),
+    __metadata("design:type", Date)
+], AssociateProfile.prototype, "lastActive", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], AssociateProfile.prototype, "taskAssigned", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)(),
+    __metadata("design:type", Date)
+], AssociateProfile.prototype, "createdAt", void 0);
+__decorate([
+    (0, typeorm_1.UpdateDateColumn)(),
+    __metadata("design:type", Date)
+], AssociateProfile.prototype, "updatedAt", void 0);
+exports.AssociateProfile = AssociateProfile = __decorate([
+    (0, typeorm_1.Entity)('associates')
+], AssociateProfile);
+//# sourceMappingURL=associate-profile.entity.js.map
