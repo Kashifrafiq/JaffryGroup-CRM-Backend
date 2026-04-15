@@ -8,13 +8,16 @@ import { AuthApiController } from './auth-api.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
+import { AdminProfile } from '../users/entities/admin-profile.entity';
+import { AssociateProfile } from '../users/entities/associate-profile.entity';
+import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
     ConfigModule,
     PassportModule,
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, AdminProfile, AssociateProfile, CustomerProfile]),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({

@@ -15,11 +15,8 @@ export class AuthService {
   ) {}
 
   async adminLogin(adminLoginDto: AdminLoginDto) {
-    const email = adminLoginDto.email.trim().toLowerCase();
-    const user = await this.usersRepository.findOne({
-      where: { email },
-      select: ['id', 'email', 'password', 'role', 'isActive', 'firstName', 'lastName'],
-    });
+    const user = await this.findUserForLogin(adminLoginDto.email);
+    const names = this.getUserNames(user);
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -49,19 +46,16 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        firstName: names.firstName,
+        lastName: names.lastName,
         role: user.role,
       },
     };
   }
 
   async associateLogin(associateLoginDto: AdminLoginDto) {
-    const email = associateLoginDto.email.trim().toLowerCase();
-    const user = await this.usersRepository.findOne({
-      where: { email },
-      select: ['id', 'email', 'password', 'role', 'isActive', 'firstName', 'lastName'],
-    });
+    const user = await this.findUserForLogin(associateLoginDto.email);
+    const names = this.getUserNames(user);
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -91,10 +85,40 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        firstName: names.firstName,
+        lastName: names.lastName,
         role: user.role,
       },
+    };
+  }
+
+  private async findUserForLogin(emailInput: string): Promise<User> {
+    const email = emailInput.trim().toLowerCase();
+    const user = await this.usersRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.adminProfile', 'adminProfile')
+      .leftJoinAndSelect('user.associateProfile', 'associateProfile')
+      .leftJoinAndSelect('user.customerProfile', 'customerProfile')
+      .addSelect('user.password')
+      .where('user.email = :email', { email })
+      .getOne();
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return user;
+  }
+
+  private getUserNames(user: User): { firstName: string; lastName: string } {
+    const profile = user.adminProfile ?? user.associateProfile ?? user.customerProfile;
+    if (!profile) {
+      throw new UnauthorizedException('Profile missing for user');
+    }
+
+    return {
+      firstName: profile.firstName,
+      lastName: profile.lastName,
     };
   }
 }
