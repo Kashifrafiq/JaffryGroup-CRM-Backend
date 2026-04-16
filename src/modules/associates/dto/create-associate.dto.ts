@@ -8,9 +8,8 @@ import {
   IsOptional,
   IsString,
   Min,
-  MinLength,
 } from 'class-validator';
-import { UserRole } from '../entities/user.entity';
+import { UserRole } from '../../users/entities/user-role.enum';
 
 export class CreateAssociateDto {
   @IsNotEmpty()
@@ -44,8 +43,4 @@ export class CreateAssociateDto {
   @IsOptional()
   @IsString()
   profilePhoto?: string;
-
-  @IsOptional()
-  @MinLength(8)
-  password?: string;
 }

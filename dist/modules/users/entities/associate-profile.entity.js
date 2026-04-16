@@ -12,8 +12,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AssociateProfile = void 0;
 const typeorm_1 = require("typeorm");
 const user_entity_1 = require("./user.entity");
+const user_role_enum_1 = require("./user-role.enum");
 let AssociateProfile = class AssociateProfile {
     id;
+    email;
+    role;
     userId;
     user;
     firstName;
@@ -33,11 +36,23 @@ __decorate([
     __metadata("design:type", String)
 ], AssociateProfile.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ unique: true }),
+    (0, typeorm_1.Column)({ unique: true, nullable: true }),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "email", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: user_role_enum_1.UserRole,
+        default: user_role_enum_1.UserRole.ASSOCIATE,
+    }),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "role", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, unique: true }),
     __metadata("design:type", String)
 ], AssociateProfile.prototype, "userId", void 0);
 __decorate([
-    (0, typeorm_1.OneToOne)(() => user_entity_1.User, (user) => user.associateProfile, { onDelete: 'CASCADE' }),
+    (0, typeorm_1.OneToOne)(() => user_entity_1.User, (user) => user.associateProfile, { onDelete: 'CASCADE', nullable: true }),
     (0, typeorm_1.JoinColumn)({ name: 'userId' }),
     __metadata("design:type", user_entity_1.User)
 ], AssociateProfile.prototype, "user", void 0);

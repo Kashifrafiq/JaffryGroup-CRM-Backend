@@ -12,9 +12,9 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { UserRole } from './entities/user.entity';
+import { UserRole } from './entities/user-role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
-import { CreateAssociateDto } from './dto/create-associate.dto';
+import { CreateCustomerDto } from './dto/create-customer.dto';
 import { BulkAssignAssociatesDto, BulkAssignCustomersDto } from './dto/bulk-assign.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
@@ -36,13 +36,13 @@ export class UsersController {
     return this.usersService.create(createUserDto, req.user);
   }
 
-  @Post('associates')
-  @Roles(UserRole.ADMIN)
-  createAssociate(
-    @Body() createAssociateDto: CreateAssociateDto,
+  @Post('customers')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  createCustomer(
+    @Body() createCustomerDto: CreateCustomerDto,
     @Request() req: { user: JwtRequestUser },
   ) {
-    return this.usersService.createAssociate(createAssociateDto, req.user);
+    return this.usersService.createCustomer(createCustomerDto, req.user);
   }
 
   @Get()

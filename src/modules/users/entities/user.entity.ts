@@ -4,19 +4,12 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  ManyToMany,
-  JoinTable,
   OneToOne,
 } from 'typeorm';
 import { AdminProfile } from './admin-profile.entity';
 import { AssociateProfile } from './associate-profile.entity';
 import { CustomerProfile } from './customer-profile.entity';
-
-export enum UserRole {
-  ADMIN = 'admin',
-  ASSOCIATE = 'associate',
-  CUSTOMER = 'customer',
-}
+import { UserRole } from './user-role.enum';
 
 @Entity('users')
 export class User {
@@ -71,17 +64,6 @@ export class User {
 
   @OneToOne(() => CustomerProfile, (customerProfile) => customerProfile.user)
   customerProfile?: CustomerProfile;
-
-  @ManyToMany(() => User, (user) => user.customers)
-  @JoinTable({
-    name: 'associate_customers',
-    joinColumn: { name: 'associateId' },
-    inverseJoinColumn: { name: 'customerId' },
-  })
-  customers!: User[];
-
-  @ManyToMany(() => User, (user) => user.associates)
-  associates!: User[];
 
   @CreateDateColumn()
   createdAt!: Date;

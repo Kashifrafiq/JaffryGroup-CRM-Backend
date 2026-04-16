@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/entities/user-role.enum';
 export type JwtPayload = {
     sub: string;
     email: string;

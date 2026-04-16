@@ -1,4 +1,13 @@
-import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
+import { TaskPriority, TaskStatus } from '../entities/task.enums';
 
 export class CreateTaskDto {
   @IsNotEmpty()
@@ -7,14 +16,28 @@ export class CreateTaskDto {
 
   @IsOptional()
   @IsString()
-  information?: string;
+  description?: string;
 
   @IsDateString()
   startDate!: string;
 
   @IsDateString()
-  dueDate!: string;
+  endDate!: string;
 
+  @IsOptional()
+  @IsEnum(TaskPriority)
+  priority?: TaskPriority;
+
+  @IsOptional()
+  @IsEnum(TaskStatus)
+  status?: TaskStatus;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return value;
+  })
   @IsUUID()
-  associateAssignedId!: string;
+  assignedTo?: string;
 }

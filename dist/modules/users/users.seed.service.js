@@ -53,6 +53,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const bcrypt = __importStar(require("bcrypt"));
 const user_entity_1 = require("./entities/user.entity");
+const user_role_enum_1 = require("./entities/user-role.enum");
 const admin_profile_entity_1 = require("./entities/admin-profile.entity");
 const associate_profile_entity_1 = require("./entities/associate-profile.entity");
 const customer_profile_entity_1 = require("./entities/customer-profile.entity");
@@ -97,7 +98,7 @@ let UsersSeedService = UsersSeedService_1 = class UsersSeedService {
         const adminUser = this.usersRepository.create({
             email: adminEmail,
             password: hashedPassword,
-            role: user_entity_1.UserRole.ADMIN,
+            role: user_role_enum_1.UserRole.ADMIN,
             isActive: true,
         });
         const savedAdmin = await this.usersRepository.save(adminUser);
@@ -131,14 +132,22 @@ let UsersSeedService = UsersSeedService_1 = class UsersSeedService {
                 dateOfBirth: legacyRow?.dateOfBirth ?? undefined,
                 profilePhoto: legacyRow?.profilePhoto ?? undefined,
             };
-            if (user.role === user_entity_1.UserRole.ADMIN) {
+            if (user.role === user_role_enum_1.UserRole.ADMIN) {
                 await this.adminProfileRepository.save(this.adminProfileRepository.create(baseProfile));
             }
-            else if (user.role === user_entity_1.UserRole.ASSOCIATE) {
-                await this.associateProfileRepository.save(this.associateProfileRepository.create(baseProfile));
+            else if (user.role === user_role_enum_1.UserRole.ASSOCIATE) {
+                await this.associateProfileRepository.save(this.associateProfileRepository.create({
+                    ...baseProfile,
+                    email: user.email,
+                    role: user_role_enum_1.UserRole.ASSOCIATE,
+                }));
             }
-            else if (user.role === user_entity_1.UserRole.CUSTOMER) {
-                await this.customerProfileRepository.save(this.customerProfileRepository.create(baseProfile));
+            else if (user.role === user_role_enum_1.UserRole.CUSTOMER) {
+                await this.customerProfileRepository.save(this.customerProfileRepository.create({
+                    ...baseProfile,
+                    email: user.email,
+                    role: user_role_enum_1.UserRole.CUSTOMER,
+                }));
             }
         }
         this.logger.log(`Backfilled ${needsProfile.length} role profile records`);

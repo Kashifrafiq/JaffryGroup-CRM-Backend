@@ -11,15 +11,17 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Task = void 0;
 const typeorm_1 = require("typeorm");
-const user_entity_1 = require("../../users/entities/user.entity");
+const associate_profile_entity_1 = require("../../users/entities/associate-profile.entity");
+const task_enums_1 = require("./task.enums");
 let Task = class Task {
     id;
     title;
-    information;
+    description;
     startDate;
-    dueDate;
-    associateAssignedId;
-    associateAssigned;
+    endDate;
+    priority;
+    status;
+    assignedTo;
     createdAt;
     updatedAt;
 };
@@ -33,26 +35,38 @@ __decorate([
     __metadata("design:type", String)
 ], Task.prototype, "title", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
-    __metadata("design:type", String)
-], Task.prototype, "information", void 0);
+    (0, typeorm_1.Column)({ type: 'text', nullable: true, name: 'information' }),
+    __metadata("design:type", Object)
+], Task.prototype, "description", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'timestamp' }),
     __metadata("design:type", Date)
 ], Task.prototype, "startDate", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'timestamp' }),
+    (0, typeorm_1.Column)({ type: 'timestamp', name: 'dueDate' }),
     __metadata("design:type", Date)
-], Task.prototype, "dueDate", void 0);
+], Task.prototype, "endDate", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: task_enums_1.TaskPriority,
+        default: task_enums_1.TaskPriority.MEDIUM,
+    }),
     __metadata("design:type", String)
-], Task.prototype, "associateAssignedId", void 0);
+], Task.prototype, "priority", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { onDelete: 'RESTRICT' }),
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: task_enums_1.TaskStatus,
+        default: task_enums_1.TaskStatus.TODO,
+    }),
+    __metadata("design:type", String)
+], Task.prototype, "status", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => associate_profile_entity_1.AssociateProfile, { onDelete: 'RESTRICT', nullable: true }),
     (0, typeorm_1.JoinColumn)({ name: 'associateAssignedId' }),
-    __metadata("design:type", user_entity_1.User)
-], Task.prototype, "associateAssigned", void 0);
+    __metadata("design:type", Object)
+], Task.prototype, "assignedTo", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

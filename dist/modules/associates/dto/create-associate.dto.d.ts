@@ -1,4 +1,4 @@
-import { UserRole } from '../entities/user.entity';
+import { UserRole } from '../../users/entities/user-role.enum';
 export declare class CreateAssociateDto {
     name: string;
     email: string;
@@ -8,5 +8,4 @@ export declare class CreateAssociateDto {
     phoneNumber?: string;
     address?: string;
     profilePhoto?: string;
-    password?: string;
 }

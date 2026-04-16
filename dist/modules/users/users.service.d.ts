@@ -1,10 +1,12 @@
 import { Repository } from 'typeorm';
-import { User, UserRole } from './entities/user.entity';
+import { User } from './entities/user.entity';
+import { UserRole } from './entities/user-role.enum';
 import { AdminProfile } from './entities/admin-profile.entity';
 import { AssociateProfile } from './entities/associate-profile.entity';
 import { CustomerProfile } from './entities/customer-profile.entity';
+import { AssociateCustomer } from './entities/associate-customer.entity';
 import { CreateUserDto } from './dto/create-user.dto';
-import { CreateAssociateDto } from './dto/create-associate.dto';
+import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 type UserView = {
     id: string;
@@ -28,14 +30,15 @@ export declare class UsersService {
     private readonly adminProfileRepository;
     private readonly associateProfileRepository;
     private readonly customerProfileRepository;
-    constructor(userRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>);
+    private readonly associateCustomerRepository;
+    constructor(userRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>, associateCustomerRepository: Repository<AssociateCustomer>);
     create(createUserDto: CreateUserDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<UserView>;
-    createAssociate(createAssociateDto: CreateAssociateDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<UserView>;
+    createCustomer(createCustomerDto: CreateCustomerDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<CustomerProfile>;
     findAll(): Promise<UserView[]>;
-    findAssignedCustomers(associateId: string): Promise<UserView[]>;
+    findAssignedCustomers(associateUserId: string): Promise<UserView[]>;
     findOne(id: string): Promise<UserView>;
     update(id: string, updateUserDto: UpdateUserDto): Promise<UserView>;
-    assignCustomerToAssociate(customerId: string, associateId: string): Promise<UserView>;
+    assignCustomerToAssociate(customerId: string, associateId: string): Promise<AssociateCustomer>;
     assignCustomerToAssociates(customerId: string, associateIds: string[]): Promise<{
         customerId: string;
         assignedAssociateIds: string[];
@@ -50,8 +53,8 @@ export declare class UsersService {
     private getProfileFromUser;
     private createProfile;
     private saveProfile;
+    private toStandaloneCustomerView;
     private toUserView;
     private splitName;
-    private generateTemporaryPassword;
 }
 export {};

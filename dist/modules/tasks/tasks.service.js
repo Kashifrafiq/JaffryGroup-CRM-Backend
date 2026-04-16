@@ -17,36 +17,42 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const task_entity_1 = require("./entities/task.entity");
-const user_entity_1 = require("../users/entities/user.entity");
+const task_enums_1 = require("./entities/task.enums");
+const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 let TasksService = class TasksService {
     taskRepository;
-    userRepository;
-    constructor(taskRepository, userRepository) {
+    associateRepository;
+    constructor(taskRepository, associateRepository) {
         this.taskRepository = taskRepository;
-        this.userRepository = userRepository;
+        this.associateRepository = associateRepository;
     }
     async create(createTaskDto) {
-        this.validateDates(createTaskDto.startDate, createTaskDto.dueDate);
-        await this.ensureAssociate(createTaskDto.associateAssignedId);
+        this.validateDates(createTaskDto.startDate, createTaskDto.endDate);
+        const assigneeId = createTaskDto.assignedTo?.trim();
+        if (assigneeId) {
+            await this.ensureAssignee(assigneeId);
+        }
         const task = this.taskRepository.create({
             title: createTaskDto.title,
-            information: createTaskDto.information,
+            description: createTaskDto.description ?? null,
             startDate: new Date(createTaskDto.startDate),
-            dueDate: new Date(createTaskDto.dueDate),
-            associateAssignedId: createTaskDto.associateAssignedId,
+            endDate: new Date(createTaskDto.endDate),
+            priority: createTaskDto.priority ?? task_enums_1.TaskPriority.MEDIUM,
+            status: createTaskDto.status ?? task_enums_1.TaskStatus.TODO,
+            assignedTo: assigneeId ? { id: assigneeId } : null,
         });
         return this.taskRepository.save(task);
     }
     async findAll() {
         return this.taskRepository.find({
-            relations: ['associateAssigned', 'associateAssigned.associateProfile'],
+            relations: ['assignedTo'],
             order: { createdAt: 'DESC' },
         });
     }
     async findOne(id) {
         const task = await this.taskRepository.findOne({
             where: { id },
-            relations: ['associateAssigned', 'associateAssigned.associateProfile'],
+            relations: ['assignedTo'],
         });
         if (!task) {
             throw new common_1.NotFoundException(`Task #${id} not found`);
@@ -55,53 +61,69 @@ let TasksService = class TasksService {
     }
     async update(id, updateTaskDto) {
         const task = await this.findOne(id);
-        if (updateTaskDto.startDate || updateTaskDto.dueDate) {
+        if (updateTaskDto.startDate || updateTaskDto.endDate) {
             const start = updateTaskDto.startDate ?? task.startDate.toISOString();
-            const due = updateTaskDto.dueDate ?? task.dueDate.toISOString();
-            this.validateDates(start, due);
+            const end = updateTaskDto.endDate ?? task.endDate.toISOString();
+            this.validateDates(start, end);
         }
-        if (updateTaskDto.associateAssignedId) {
-            await this.ensureAssociate(updateTaskDto.associateAssignedId);
-            task.associateAssignedId = updateTaskDto.associateAssignedId;
+        if (updateTaskDto.assignedTo !== undefined) {
+            const raw = updateTaskDto.assignedTo;
+            if (raw === null || (typeof raw === 'string' && !raw.trim())) {
+                task.assignedTo = null;
+            }
+            else {
+                const aid = String(raw).trim();
+                await this.ensureAssignee(aid);
+                task.assignedTo = { id: aid };
+            }
         }
         if (updateTaskDto.title !== undefined)
             task.title = updateTaskDto.title;
-        if (updateTaskDto.information !== undefined)
-            task.information = updateTaskDto.information;
+        if (updateTaskDto.description !== undefined)
+            task.description = updateTaskDto.description;
+        if (updateTaskDto.priority !== undefined)
+            task.priority = updateTaskDto.priority;
+        if (updateTaskDto.status !== undefined)
+            task.status = updateTaskDto.status;
         if (updateTaskDto.startDate !== undefined)
             task.startDate = new Date(updateTaskDto.startDate);
-        if (updateTaskDto.dueDate !== undefined)
-            task.dueDate = new Date(updateTaskDto.dueDate);
+        if (updateTaskDto.endDate !== undefined)
+            task.endDate = new Date(updateTaskDto.endDate);
         return this.taskRepository.save(task);
     }
     async remove(id) {
         const task = await this.findOne(id);
         await this.taskRepository.remove(task);
     }
-    validateDates(startDate, dueDate) {
+    validateDates(startDate, endDate) {
         const start = new Date(startDate);
-        const due = new Date(dueDate);
-        if (Number.isNaN(start.getTime()) || Number.isNaN(due.getTime())) {
-            throw new common_1.BadRequestException('Invalid startDate or dueDate');
+        const end = new Date(endDate);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            throw new common_1.BadRequestException('Invalid startDate or endDate');
         }
-        if (due < start) {
-            throw new common_1.BadRequestException('dueDate must be after or equal to startDate');
+        if (end < start) {
+            throw new common_1.BadRequestException('endDate must be after or equal to startDate');
         }
     }
-    async ensureAssociate(associateId) {
-        const associate = await this.userRepository.findOne({
-            where: { id: associateId, role: user_entity_1.UserRole.ASSOCIATE },
-        });
-        if (!associate) {
-            throw new common_1.NotFoundException('Associate not found');
+    async ensureAssignee(assigneeId) {
+        const id = assigneeId?.trim() ?? '';
+        if (!this.isUuid(id)) {
+            throw new common_1.BadRequestException('assignedTo must be a valid UUID (use the id from POST /associates response).');
         }
+        const associate = await this.associateRepository.findOne({ where: { id } });
+        if (!associate) {
+            throw new common_1.NotFoundException('Assignee associate not found');
+        }
+    }
+    isUuid(value) {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
     }
 };
 exports.TasksService = TasksService;
 exports.TasksService = TasksService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(task_entity_1.Task)),
-    __param(1, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(1, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository])
 ], TasksService);

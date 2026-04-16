@@ -10,7 +10,7 @@ exports.TasksModule = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const task_entity_1 = require("./entities/task.entity");
-const user_entity_1 = require("../users/entities/user.entity");
+const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const tasks_controller_1 = require("./tasks.controller");
 const tasks_service_1 = require("./tasks.service");
 let TasksModule = class TasksModule {
@@ -18,7 +18,7 @@ let TasksModule = class TasksModule {
 exports.TasksModule = TasksModule;
 exports.TasksModule = TasksModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([task_entity_1.Task, user_entity_1.User])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([task_entity_1.Task, associate_profile_entity_1.AssociateProfile])],
         controllers: [tasks_controller_1.TasksController],
         providers: [tasks_service_1.TasksService],
         exports: [tasks_service_1.TasksService],

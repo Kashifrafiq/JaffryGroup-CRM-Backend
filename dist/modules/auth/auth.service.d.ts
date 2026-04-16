@@ -1,6 +1,7 @@
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
-import { User, UserRole } from '../users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/entities/user-role.enum';
 import { AdminLoginDto } from './dto/admin-login.dto';
 export declare class AuthService {
     private readonly usersRepository;

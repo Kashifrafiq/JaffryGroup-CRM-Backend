@@ -7,7 +7,8 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { AssociateProfile } from '../../users/entities/associate-profile.entity';
+import { TaskPriority, TaskStatus } from './task.enums';
 
 @Entity('tasks')
 export class Task {
@@ -17,21 +18,34 @@ export class Task {
   @Column()
   title!: string;
 
-  @Column({ type: 'text', nullable: true })
-  information?: string;
+  /** Maps to legacy DB column `information`. */
+  @Column({ type: 'text', nullable: true, name: 'information' })
+  description?: string | null;
 
   @Column({ type: 'timestamp' })
   startDate!: Date;
 
-  @Column({ type: 'timestamp' })
-  dueDate!: Date;
+  /** Maps to legacy DB column `dueDate`. */
+  @Column({ type: 'timestamp', name: 'dueDate' })
+  endDate!: Date;
 
-  @Column()
-  associateAssignedId!: string;
+  @Column({
+    type: 'enum',
+    enum: TaskPriority,
+    default: TaskPriority.MEDIUM,
+  })
+  priority!: TaskPriority;
 
-  @ManyToOne(() => User, { onDelete: 'RESTRICT' })
+  @Column({
+    type: 'enum',
+    enum: TaskStatus,
+    default: TaskStatus.TODO,
+  })
+  status!: TaskStatus;
+
+  @ManyToOne(() => AssociateProfile, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'associateAssignedId' })
-  associateAssigned!: User;
+  assignedTo?: AssociateProfile | null;
 
   @CreateDateColumn()
   createdAt!: Date;

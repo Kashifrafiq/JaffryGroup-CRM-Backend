@@ -9,17 +9,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.User = exports.UserRole = void 0;
+exports.User = void 0;
 const typeorm_1 = require("typeorm");
 const admin_profile_entity_1 = require("./admin-profile.entity");
 const associate_profile_entity_1 = require("./associate-profile.entity");
 const customer_profile_entity_1 = require("./customer-profile.entity");
-var UserRole;
-(function (UserRole) {
-    UserRole["ADMIN"] = "admin";
-    UserRole["ASSOCIATE"] = "associate";
-    UserRole["CUSTOMER"] = "customer";
-})(UserRole || (exports.UserRole = UserRole = {}));
+const user_role_enum_1 = require("./user-role.enum");
 let User = class User {
     id;
     email;
@@ -35,8 +30,6 @@ let User = class User {
     adminProfile;
     associateProfile;
     customerProfile;
-    customers;
-    associates;
     createdAt;
     updatedAt;
 };
@@ -80,8 +73,8 @@ __decorate([
 __decorate([
     (0, typeorm_1.Column)({
         type: 'enum',
-        enum: UserRole,
-        default: UserRole.CUSTOMER,
+        enum: user_role_enum_1.UserRole,
+        default: user_role_enum_1.UserRole.CUSTOMER,
     }),
     __metadata("design:type", String)
 ], User.prototype, "role", void 0);
@@ -101,19 +94,6 @@ __decorate([
     (0, typeorm_1.OneToOne)(() => customer_profile_entity_1.CustomerProfile, (customerProfile) => customerProfile.user),
     __metadata("design:type", customer_profile_entity_1.CustomerProfile)
 ], User.prototype, "customerProfile", void 0);
-__decorate([
-    (0, typeorm_1.ManyToMany)(() => User, (user) => user.customers),
-    (0, typeorm_1.JoinTable)({
-        name: 'associate_customers',
-        joinColumn: { name: 'associateId' },
-        inverseJoinColumn: { name: 'customerId' },
-    }),
-    __metadata("design:type", Array)
-], User.prototype, "customers", void 0);
-__decorate([
-    (0, typeorm_1.ManyToMany)(() => User, (user) => user.associates),
-    __metadata("design:type", Array)
-], User.prototype, "associates", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

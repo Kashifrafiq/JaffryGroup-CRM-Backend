@@ -1,6 +1,6 @@
-import { UserRole } from './entities/user.entity';
+import { UserRole } from './entities/user-role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
-import { CreateAssociateDto } from './dto/create-associate.dto';
+import { CreateCustomerDto } from './dto/create-customer.dto';
 import { BulkAssignAssociatesDto, BulkAssignCustomersDto } from './dto/bulk-assign.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
@@ -31,25 +31,9 @@ export declare class UsersController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    createAssociate(createAssociateDto: CreateAssociateDto, req: {
+    createCustomer(createCustomerDto: CreateCustomerDto, req: {
         user: JwtRequestUser;
-    }): Promise<{
-        id: string;
-        email: string;
-        role: UserRole;
-        isActive: boolean;
-        firstName: string;
-        lastName: string;
-        name: string;
-        phoneNumber?: string;
-        address?: string;
-        dateOfBirth?: Date;
-        profilePhoto?: string;
-        lastActive?: Date;
-        taskAssigned?: number;
-        createdAt: Date;
-        updatedAt: Date;
-    }>;
+    }): Promise<import("./entities/customer-profile.entity").CustomerProfile>;
     findAll(): Promise<{
         id: string;
         email: string;
@@ -120,23 +104,7 @@ export declare class UsersController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    assign(customerId: string, associateId: string): Promise<{
-        id: string;
-        email: string;
-        role: UserRole;
-        isActive: boolean;
-        firstName: string;
-        lastName: string;
-        name: string;
-        phoneNumber?: string;
-        address?: string;
-        dateOfBirth?: Date;
-        profilePhoto?: string;
-        lastActive?: Date;
-        taskAssigned?: number;
-        createdAt: Date;
-        updatedAt: Date;
-    }>;
+    assign(customerId: string, associateId: string): Promise<import("./entities/associate-customer.entity").AssociateCustomer>;
     assignCustomerToMultipleAssociates(customerId: string, body: BulkAssignAssociatesDto): Promise<{
         customerId: string;
         assignedAssociateIds: string[];

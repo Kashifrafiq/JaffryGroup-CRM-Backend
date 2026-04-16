@@ -8,18 +8,30 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { User } from './user.entity';
+import { UserRole } from './user-role.enum';
 
 @Entity('customers')
 export class CustomerProfile {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ unique: true })
-  userId!: string;
+  /** Nullable for legacy rows; new customers must still provide email via API. */
+  @Column({ unique: true, nullable: true })
+  email?: string;
 
-  @OneToOne(() => User, (user) => user.customerProfile, { onDelete: 'CASCADE' })
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.CUSTOMER,
+  })
+  role!: UserRole;
+
+  @Column({ nullable: true, unique: true })
+  userId?: string;
+
+  @OneToOne(() => User, (user) => user.customerProfile, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'userId' })
-  user!: User;
+  user?: User;
 
   @Column()
   firstName!: string;

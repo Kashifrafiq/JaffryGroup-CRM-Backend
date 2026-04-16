@@ -1,8 +1,11 @@
 import { User } from './user.entity';
+import { UserRole } from './user-role.enum';
 export declare class CustomerProfile {
     id: string;
-    userId: string;
-    user: User;
+    email?: string;
+    role: UserRole;
+    userId?: string;
+    user?: User;
     firstName: string;
     lastName: string;
     phoneNumber?: string;

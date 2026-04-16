@@ -1,7 +1,10 @@
+import { TaskPriority, TaskStatus } from '../entities/task.enums';
 export declare class CreateTaskDto {
     title: string;
-    information?: string;
+    description?: string;
     startDate: string;
-    dueDate: string;
-    associateAssignedId: string;
+    endDate: string;
+    priority?: TaskPriority;
+    status?: TaskStatus;
+    assignedTo?: string;
 }

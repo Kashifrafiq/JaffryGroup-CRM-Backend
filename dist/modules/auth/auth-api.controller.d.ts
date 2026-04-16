@@ -28,7 +28,7 @@ export declare class AuthApiController {
             email: string;
             firstName: string;
             lastName: string;
-            role: import("../users/entities/user.entity").UserRole.ADMIN;
+            role: import("../users/entities/user-role.enum").UserRole.ADMIN;
         };
     }>;
     associateLoginHelp(): {
@@ -51,7 +51,7 @@ export declare class AuthApiController {
             email: string;
             firstName: string;
             lastName: string;
-            role: import("../users/entities/user.entity").UserRole.ASSOCIATE;
+            role: import("../users/entities/user-role.enum").UserRole.ASSOCIATE;
         };
     }>;
 }

@@ -50,27 +50,28 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const bcrypt = __importStar(require("bcrypt"));
-const crypto_1 = require("crypto");
 const user_entity_1 = require("./entities/user.entity");
+const user_role_enum_1 = require("./entities/user-role.enum");
 const admin_profile_entity_1 = require("./entities/admin-profile.entity");
 const associate_profile_entity_1 = require("./entities/associate-profile.entity");
 const customer_profile_entity_1 = require("./entities/customer-profile.entity");
+const associate_customer_entity_1 = require("./entities/associate-customer.entity");
 let UsersService = class UsersService {
     userRepository;
     adminProfileRepository;
     associateProfileRepository;
     customerProfileRepository;
-    constructor(userRepository, adminProfileRepository, associateProfileRepository, customerProfileRepository) {
+    associateCustomerRepository;
+    constructor(userRepository, adminProfileRepository, associateProfileRepository, customerProfileRepository, associateCustomerRepository) {
         this.userRepository = userRepository;
         this.adminProfileRepository = adminProfileRepository;
         this.associateProfileRepository = associateProfileRepository;
         this.customerProfileRepository = customerProfileRepository;
+        this.associateCustomerRepository = associateCustomerRepository;
     }
     async create(createUserDto, createdBy) {
-        if (createUserDto.role === user_entity_1.UserRole.ASSOCIATE &&
-            createdBy &&
-            createdBy.role !== user_entity_1.UserRole.ADMIN) {
-            throw new common_1.ForbiddenException('Only Admin can create Associates');
+        if (createUserDto.role === user_role_enum_1.UserRole.ASSOCIATE || createUserDto.role === user_role_enum_1.UserRole.CUSTOMER) {
+            throw new common_1.ForbiddenException('Use dedicated endpoints: POST /associates or POST /users/customers');
         }
         const normalizedEmail = createUserDto.email.trim().toLowerCase();
         const existing = await this.userRepository.findOne({
@@ -89,42 +90,29 @@ let UsersService = class UsersService {
         const profile = await this.createProfile(savedUser.id, createUserDto);
         return this.toUserView(savedUser, profile);
     }
-    async createAssociate(createAssociateDto, createdBy) {
-        if (createdBy && createdBy.role !== user_entity_1.UserRole.ADMIN) {
-            throw new common_1.ForbiddenException('Only Admin can create associates');
+    async createCustomer(createCustomerDto, createdBy) {
+        if (createdBy &&
+            createdBy.role !== user_role_enum_1.UserRole.ADMIN &&
+            createdBy.role !== user_role_enum_1.UserRole.ASSOCIATE) {
+            throw new common_1.ForbiddenException('Only Admin or Associate can create customers');
         }
-        if (createAssociateDto.role !== user_entity_1.UserRole.ASSOCIATE) {
-            throw new common_1.ForbiddenException('Role must be associate');
+        if (createCustomerDto.role !== user_role_enum_1.UserRole.CUSTOMER) {
+            throw new common_1.ForbiddenException('Role must be customer');
         }
-        const normalizedEmail = createAssociateDto.email.trim().toLowerCase();
-        const existing = await this.userRepository.findOne({
-            where: { email: normalizedEmail },
-        });
+        const normalizedEmail = createCustomerDto.email.trim().toLowerCase();
+        const existing = await this.customerProfileRepository.findOne({ where: { email: normalizedEmail } });
         if (existing)
             throw new common_1.ConflictException('Email already in use');
-        const password = createAssociateDto.password ?? this.generateTemporaryPassword();
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const user = this.userRepository.create({
+        const { firstName, lastName } = this.splitName(createCustomerDto.name);
+        return this.customerProfileRepository.save(this.customerProfileRepository.create({
             email: normalizedEmail,
-            password: hashedPassword,
-            role: user_entity_1.UserRole.ASSOCIATE,
-            isActive: true,
-        });
-        const savedUser = await this.userRepository.save(user);
-        const { firstName, lastName } = this.splitName(createAssociateDto.name);
-        const associateProfile = await this.associateProfileRepository.save(this.associateProfileRepository.create({
-            userId: savedUser.id,
+            role: user_role_enum_1.UserRole.CUSTOMER,
             firstName,
             lastName,
-            phoneNumber: createAssociateDto.phoneNumber,
-            address: createAssociateDto.address,
-            profilePhoto: createAssociateDto.profilePhoto,
-            lastActive: createAssociateDto.lastActive
-                ? new Date(createAssociateDto.lastActive)
-                : undefined,
-            taskAssigned: createAssociateDto.taskAssigned ?? 0,
+            phoneNumber: createCustomerDto.phoneNumber,
+            address: createCustomerDto.address,
+            profilePhoto: createCustomerDto.profilePhoto,
         }));
-        return this.toUserView(savedUser, associateProfile);
     }
     async findAll() {
         const users = await this.userRepository.find({
@@ -132,17 +120,30 @@ let UsersService = class UsersService {
         });
         return users.map((user) => this.toUserView(user, this.getProfileFromUser(user)));
     }
-    async findAssignedCustomers(associateId) {
-        const associate = await this.userRepository.findOne({
-            where: { id: associateId },
-            relations: ['associateProfile', 'customers', 'customers.customerProfile'],
-        });
-        if (!associate)
+    async findAssignedCustomers(associateUserId) {
+        const user = await this.userRepository.findOne({ where: { id: associateUserId } });
+        if (!user)
             throw new common_1.NotFoundException('Associate not found');
-        if (associate.role !== user_entity_1.UserRole.ASSOCIATE) {
+        if (user.role !== user_role_enum_1.UserRole.ASSOCIATE) {
             throw new common_1.ForbiddenException('Only associates can access assigned customers');
         }
-        return associate.customers.map((customer) => this.toUserView(customer, customer.customerProfile));
+        const associateProfile = await this.associateProfileRepository.findOne({
+            where: { userId: associateUserId },
+        });
+        if (!associateProfile) {
+            return [];
+        }
+        const links = await this.associateCustomerRepository.find({
+            where: { associateId: associateProfile.id },
+        });
+        const customerIds = links.map((l) => l.customerId);
+        if (!customerIds.length) {
+            return [];
+        }
+        const customers = await this.customerProfileRepository.find({
+            where: { id: (0, typeorm_2.In)(customerIds) },
+        });
+        return customers.map((c) => this.toStandaloneCustomerView(c));
     }
     async findOne(id) {
         const user = await this.userRepository.findOne({
@@ -189,44 +190,36 @@ let UsersService = class UsersService {
         return this.toUserView(user, updatedProfile);
     }
     async assignCustomerToAssociate(customerId, associateId) {
-        const associate = await this.userRepository.findOne({
-            where: { id: associateId, role: user_entity_1.UserRole.ASSOCIATE },
-            relations: ['associateProfile', 'customers'],
-        });
+        const associate = await this.associateProfileRepository.findOne({ where: { id: associateId } });
         if (!associate)
             throw new common_1.NotFoundException('Associate not found');
-        const customer = await this.userRepository.findOne({
-            where: { id: customerId, role: user_entity_1.UserRole.CUSTOMER },
-        });
+        const customer = await this.customerProfileRepository.findOne({ where: { id: customerId } });
         if (!customer)
             throw new common_1.NotFoundException('Customer not found');
-        const alreadyAssigned = associate.customers.some((c) => c.id === customerId);
-        if (!alreadyAssigned) {
-            associate.customers.push(customer);
-            await this.userRepository.save(associate);
+        const existing = await this.associateCustomerRepository.findOne({
+            where: { associateId, customerId },
+        });
+        if (existing) {
+            return existing;
         }
-        return this.toUserView(associate, associate.associateProfile);
+        return this.associateCustomerRepository.save(this.associateCustomerRepository.create({ associateId, customerId }));
     }
     async assignCustomerToAssociates(customerId, associateIds) {
-        const customer = await this.userRepository.findOne({
-            where: { id: customerId, role: user_entity_1.UserRole.CUSTOMER },
-        });
+        const customer = await this.customerProfileRepository.findOne({ where: { id: customerId } });
         if (!customer)
             throw new common_1.NotFoundException('Customer not found');
         const uniqueAssociateIds = [...new Set(associateIds)];
         const assignedAssociateIds = [];
         for (const associateId of uniqueAssociateIds) {
-            const associate = await this.userRepository.findOne({
-                where: { id: associateId, role: user_entity_1.UserRole.ASSOCIATE },
-                relations: ['customers'],
-            });
+            const associate = await this.associateProfileRepository.findOne({ where: { id: associateId } });
             if (!associate) {
                 throw new common_1.NotFoundException(`Associate ${associateId} not found`);
             }
-            const alreadyAssigned = associate.customers.some((c) => c.id === customerId);
-            if (!alreadyAssigned) {
-                associate.customers.push(customer);
-                await this.userRepository.save(associate);
+            const existing = await this.associateCustomerRepository.findOne({
+                where: { associateId, customerId },
+            });
+            if (!existing) {
+                await this.associateCustomerRepository.save(this.associateCustomerRepository.create({ associateId, customerId }));
             }
             assignedAssociateIds.push(associateId);
         }
@@ -237,28 +230,24 @@ let UsersService = class UsersService {
         };
     }
     async assignCustomersToAssociate(associateId, customerIds) {
-        const associate = await this.userRepository.findOne({
-            where: { id: associateId, role: user_entity_1.UserRole.ASSOCIATE },
-            relations: ['customers'],
-        });
+        const associate = await this.associateProfileRepository.findOne({ where: { id: associateId } });
         if (!associate)
             throw new common_1.NotFoundException('Associate not found');
         const uniqueCustomerIds = [...new Set(customerIds)];
         const assignedCustomerIds = [];
         for (const customerId of uniqueCustomerIds) {
-            const customer = await this.userRepository.findOne({
-                where: { id: customerId, role: user_entity_1.UserRole.CUSTOMER },
-            });
+            const customer = await this.customerProfileRepository.findOne({ where: { id: customerId } });
             if (!customer) {
                 throw new common_1.NotFoundException(`Customer ${customerId} not found`);
             }
-            const alreadyAssigned = associate.customers.some((c) => c.id === customerId);
-            if (!alreadyAssigned) {
-                associate.customers.push(customer);
+            const existing = await this.associateCustomerRepository.findOne({
+                where: { associateId, customerId },
+            });
+            if (!existing) {
+                await this.associateCustomerRepository.save(this.associateCustomerRepository.create({ associateId, customerId }));
             }
             assignedCustomerIds.push(customerId);
         }
-        await this.userRepository.save(associate);
         return {
             associateId,
             assignedCustomerIds,
@@ -286,27 +275,54 @@ let UsersService = class UsersService {
             profilePhoto: createUserDto.profilePhoto,
         };
         switch (createUserDto.role) {
-            case user_entity_1.UserRole.ADMIN:
+            case user_role_enum_1.UserRole.ADMIN:
                 return this.adminProfileRepository.save(this.adminProfileRepository.create(profileData));
-            case user_entity_1.UserRole.ASSOCIATE:
-                return this.associateProfileRepository.save(this.associateProfileRepository.create(profileData));
-            case user_entity_1.UserRole.CUSTOMER:
-                return this.customerProfileRepository.save(this.customerProfileRepository.create(profileData));
+            case user_role_enum_1.UserRole.ASSOCIATE:
+                return this.associateProfileRepository.save(this.associateProfileRepository.create({
+                    ...profileData,
+                    email: createUserDto.email.trim().toLowerCase(),
+                    role: user_role_enum_1.UserRole.ASSOCIATE,
+                }));
+            case user_role_enum_1.UserRole.CUSTOMER:
+                return this.customerProfileRepository.save(this.customerProfileRepository.create({
+                    ...profileData,
+                    email: createUserDto.email.trim().toLowerCase(),
+                    role: user_role_enum_1.UserRole.CUSTOMER,
+                }));
             default:
                 throw new common_1.ForbiddenException('Unsupported role');
         }
     }
     async saveProfile(role, profile) {
         switch (role) {
-            case user_entity_1.UserRole.ADMIN:
+            case user_role_enum_1.UserRole.ADMIN:
                 return this.adminProfileRepository.save(profile);
-            case user_entity_1.UserRole.ASSOCIATE:
+            case user_role_enum_1.UserRole.ASSOCIATE:
                 return this.associateProfileRepository.save(profile);
-            case user_entity_1.UserRole.CUSTOMER:
+            case user_role_enum_1.UserRole.CUSTOMER:
                 return this.customerProfileRepository.save(profile);
             default:
                 throw new common_1.ForbiddenException('Unsupported role');
         }
+    }
+    toStandaloneCustomerView(customer) {
+        return {
+            id: customer.id,
+            email: customer.email ?? '',
+            role: user_role_enum_1.UserRole.CUSTOMER,
+            isActive: true,
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            name: `${customer.firstName} ${customer.lastName}`.trim(),
+            phoneNumber: customer.phoneNumber,
+            address: customer.address,
+            dateOfBirth: customer.dateOfBirth,
+            profilePhoto: customer.profilePhoto,
+            lastActive: undefined,
+            taskAssigned: undefined,
+            createdAt: customer.createdAt,
+            updatedAt: customer.updatedAt,
+        };
     }
     toUserView(user, profile) {
         if (!profile) {
@@ -344,9 +360,6 @@ let UsersService = class UsersService {
             lastName: parts.slice(1).join(' '),
         };
     }
-    generateTemporaryPassword() {
-        return `${(0, crypto_1.randomBytes)(6).toString('hex')}A1!`;
-    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([
@@ -355,7 +368,9 @@ exports.UsersService = UsersService = __decorate([
     __param(1, (0, typeorm_1.InjectRepository)(admin_profile_entity_1.AdminProfile)),
     __param(2, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
     __param(3, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
+    __param(4, (0, typeorm_1.InjectRepository)(associate_customer_entity_1.AssociateCustomer)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository])

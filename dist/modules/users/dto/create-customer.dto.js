@@ -9,64 +9,44 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreateAssociateDto = void 0;
+exports.CreateCustomerDto = void 0;
 const class_validator_1 = require("class-validator");
-const user_entity_1 = require("../entities/user.entity");
-class CreateAssociateDto {
+const user_role_enum_1 = require("../entities/user-role.enum");
+class CreateCustomerDto {
     name;
     email;
     role;
-    lastActive;
-    taskAssigned;
     phoneNumber;
     address;
     profilePhoto;
-    password;
 }
-exports.CreateAssociateDto = CreateAssociateDto;
+exports.CreateCustomerDto = CreateCustomerDto;
 __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateAssociateDto.prototype, "name", void 0);
+], CreateCustomerDto.prototype, "name", void 0);
 __decorate([
     (0, class_validator_1.IsEmail)(),
     __metadata("design:type", String)
-], CreateAssociateDto.prototype, "email", void 0);
+], CreateCustomerDto.prototype, "email", void 0);
 __decorate([
-    (0, class_validator_1.IsEnum)(user_entity_1.UserRole),
-    (0, class_validator_1.Equals)(user_entity_1.UserRole.ASSOCIATE),
+    (0, class_validator_1.IsEnum)(user_role_enum_1.UserRole),
     __metadata("design:type", String)
-], CreateAssociateDto.prototype, "role", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsDateString)(),
-    __metadata("design:type", String)
-], CreateAssociateDto.prototype, "lastActive", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsInt)(),
-    (0, class_validator_1.Min)(0),
-    __metadata("design:type", Number)
-], CreateAssociateDto.prototype, "taskAssigned", void 0);
+], CreateCustomerDto.prototype, "role", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateAssociateDto.prototype, "phoneNumber", void 0);
+], CreateCustomerDto.prototype, "phoneNumber", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateAssociateDto.prototype, "address", void 0);
+], CreateCustomerDto.prototype, "address", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateAssociateDto.prototype, "profilePhoto", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.MinLength)(8),
-    __metadata("design:type", String)
-], CreateAssociateDto.prototype, "password", void 0);
-//# sourceMappingURL=create-associate.dto.js.map
+], CreateCustomerDto.prototype, "profilePhoto", void 0);
+//# sourceMappingURL=create-customer.dto.js.map

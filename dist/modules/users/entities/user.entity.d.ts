@@ -1,11 +1,7 @@
 import { AdminProfile } from './admin-profile.entity';
 import { AssociateProfile } from './associate-profile.entity';
 import { CustomerProfile } from './customer-profile.entity';
-export declare enum UserRole {
-    ADMIN = "admin",
-    ASSOCIATE = "associate",
-    CUSTOMER = "customer"
-}
+import { UserRole } from './user-role.enum';
 export declare class User {
     id: string;
     email: string;
@@ -21,8 +17,6 @@ export declare class User {
     adminProfile?: AdminProfile;
     associateProfile?: AssociateProfile;
     customerProfile?: CustomerProfile;
-    customers: User[];
-    associates: User[];
     createdAt: Date;
     updatedAt: Date;
 }

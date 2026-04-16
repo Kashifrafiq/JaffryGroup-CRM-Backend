@@ -10,13 +10,17 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateTaskDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const task_enums_1 = require("../entities/task.enums");
 class CreateTaskDto {
     title;
-    information;
+    description;
     startDate;
-    dueDate;
-    associateAssignedId;
+    endDate;
+    priority;
+    status;
+    assignedTo;
 }
 exports.CreateTaskDto = CreateTaskDto;
 __decorate([
@@ -28,7 +32,7 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateTaskDto.prototype, "information", void 0);
+], CreateTaskDto.prototype, "description", void 0);
 __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
@@ -36,9 +40,27 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
-], CreateTaskDto.prototype, "dueDate", void 0);
+], CreateTaskDto.prototype, "endDate", void 0);
 __decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(task_enums_1.TaskPriority),
+    __metadata("design:type", String)
+], CreateTaskDto.prototype, "priority", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(task_enums_1.TaskStatus),
+    __metadata("design:type", String)
+], CreateTaskDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Transform)(({ value }) => {
+        if (value === null || value === undefined)
+            return undefined;
+        if (typeof value === 'string' && value.trim() === '')
+            return undefined;
+        return value;
+    }),
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
-], CreateTaskDto.prototype, "associateAssignedId", void 0);
+], CreateTaskDto.prototype, "assignedTo", void 0);
 //# sourceMappingURL=create-task.dto.js.map

@@ -52,6 +52,7 @@ const jwt_1 = require("@nestjs/jwt");
 const typeorm_2 = require("typeorm");
 const bcrypt = __importStar(require("bcrypt"));
 const user_entity_1 = require("../users/entities/user.entity");
+const user_role_enum_1 = require("../users/entities/user-role.enum");
 let AuthService = class AuthService {
     usersRepository;
     jwtService;
@@ -69,7 +70,7 @@ let AuthService = class AuthService {
         if (!isPasswordValid) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
-        if (user.role !== user_entity_1.UserRole.ADMIN) {
+        if (user.role !== user_role_enum_1.UserRole.ADMIN) {
             throw new common_1.ForbiddenException('Only admin can login here');
         }
         if (!user.isActive) {
@@ -101,7 +102,7 @@ let AuthService = class AuthService {
         if (!isPasswordValid) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
-        if (user.role !== user_entity_1.UserRole.ASSOCIATE) {
+        if (user.role !== user_role_enum_1.UserRole.ASSOCIATE) {
             throw new common_1.ForbiddenException('Only associate can login here');
         }
         if (!user.isActive) {

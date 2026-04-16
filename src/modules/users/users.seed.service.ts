@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User, UserRole } from './entities/user.entity';
+import { User } from './entities/user.entity';
+import { UserRole } from './entities/user-role.enum';
 import { AdminProfile } from './entities/admin-profile.entity';
 import { AssociateProfile } from './entities/associate-profile.entity';
 import { CustomerProfile } from './entities/customer-profile.entity';
@@ -116,10 +117,20 @@ export class UsersSeedService implements OnApplicationBootstrap {
         await this.adminProfileRepository.save(this.adminProfileRepository.create(baseProfile));
       } else if (user.role === UserRole.ASSOCIATE) {
         await this.associateProfileRepository.save(
-          this.associateProfileRepository.create(baseProfile),
+          this.associateProfileRepository.create({
+            ...baseProfile,
+            email: user.email,
+            role: UserRole.ASSOCIATE,
+          }),
         );
       } else if (user.role === UserRole.CUSTOMER) {
-        await this.customerProfileRepository.save(this.customerProfileRepository.create(baseProfile));
+        await this.customerProfileRepository.save(
+          this.customerProfileRepository.create({
+            ...baseProfile,
+            email: user.email,
+            role: UserRole.CUSTOMER,
+          }),
+        );
       }
     }
 
