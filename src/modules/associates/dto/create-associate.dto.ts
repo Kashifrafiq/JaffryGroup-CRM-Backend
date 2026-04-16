@@ -1,27 +1,25 @@
-import {
-  Equals,
-  IsDateString,
-  IsEmail,
-  IsEnum,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Min,
-} from 'class-validator';
-import { UserRole } from '../../users/entities/user-role.enum';
+import { IsDateString, IsEmail, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { AssociateStatus } from '../../users/entities/associate-profile.entity';
 
 export class CreateAssociateDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   name!: string;
 
   @IsEmail()
   email!: string;
 
-  @IsEnum(UserRole)
-  @Equals(UserRole.ASSOCIATE)
-  role!: UserRole;
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(128)
+  role!: string;
+
+  @IsString()
+  department!: string;
+
+  @IsOptional()
+  @IsEnum(AssociateStatus)
+  status?: AssociateStatus;
 
   @IsOptional()
   @IsDateString()

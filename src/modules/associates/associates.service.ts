@@ -1,7 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AssociateProfile } from '../users/entities/associate-profile.entity';
+import { AssociateProfile, AssociateStatus } from '../users/entities/associate-profile.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/entities/user-role.enum';
 import { CreateAssociateDto } from './dto/create-associate.dto';
@@ -27,11 +27,14 @@ export class AssociatesService {
       throw new ConflictException('Email already in use');
     }
 
-    const { firstName, lastName } = this.splitName(createAssociateDto.name);
+    const fallbackName = normalizedEmail.split('@')[0] || 'Associate User';
+    const { firstName, lastName } = this.splitName(createAssociateDto.name ?? fallbackName);
     return this.associateRepository.save(
       this.associateRepository.create({
         email: normalizedEmail,
-        role: UserRole.ASSOCIATE,
+        role: createAssociateDto.role.trim(),
+        department: createAssociateDto.department,
+        status: createAssociateDto.status ?? AssociateStatus.ACTIVE,
         firstName,
         lastName,
         phoneNumber: createAssociateDto.phoneNumber,

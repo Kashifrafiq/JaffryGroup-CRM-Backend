@@ -9,10 +9,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AssociateProfile = void 0;
+exports.AssociateProfile = exports.AssociateStatus = void 0;
 const typeorm_1 = require("typeorm");
 const user_entity_1 = require("./user.entity");
-const user_role_enum_1 = require("./user-role.enum");
+var AssociateStatus;
+(function (AssociateStatus) {
+    AssociateStatus["ACTIVE"] = "active";
+    AssociateStatus["INACTIVE"] = "inactive";
+})(AssociateStatus || (exports.AssociateStatus = AssociateStatus = {}));
 let AssociateProfile = class AssociateProfile {
     id;
     email;
@@ -26,6 +30,8 @@ let AssociateProfile = class AssociateProfile {
     dateOfBirth;
     profilePhoto;
     lastActive;
+    department;
+    status;
     taskAssigned;
     createdAt;
     updatedAt;
@@ -40,11 +46,7 @@ __decorate([
     __metadata("design:type", String)
 ], AssociateProfile.prototype, "email", void 0);
 __decorate([
-    (0, typeorm_1.Column)({
-        type: 'enum',
-        enum: user_role_enum_1.UserRole,
-        default: user_role_enum_1.UserRole.ASSOCIATE,
-    }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 128, default: 'associate' }),
     __metadata("design:type", String)
 ], AssociateProfile.prototype, "role", void 0);
 __decorate([
@@ -84,6 +86,18 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'timestamp', nullable: true }),
     __metadata("design:type", Date)
 ], AssociateProfile.prototype, "lastActive", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "department", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: AssociateStatus,
+        default: AssociateStatus.ACTIVE,
+    }),
+    __metadata("design:type", String)
+], AssociateProfile.prototype, "status", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)

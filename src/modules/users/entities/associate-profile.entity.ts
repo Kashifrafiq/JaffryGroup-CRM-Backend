@@ -8,7 +8,11 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { User } from './user.entity';
-import { UserRole } from './user-role.enum';
+
+export enum AssociateStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+}
 
 @Entity('associates')
 export class AssociateProfile {
@@ -19,12 +23,9 @@ export class AssociateProfile {
   @Column({ unique: true, nullable: true })
   email?: string;
 
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.ASSOCIATE,
-  })
-  role!: UserRole;
+  /** Job title / CRM role label (e.g. associate, manager, accountant). */
+  @Column({ type: 'varchar', length: 128, default: 'associate' })
+  role!: string;
 
   @Column({ nullable: true, unique: true })
   userId?: string;
@@ -53,6 +54,16 @@ export class AssociateProfile {
 
   @Column({ type: 'timestamp', nullable: true })
   lastActive?: Date;
+
+  @Column({ nullable: true })
+  department?: string;
+
+  @Column({
+    type: 'enum',
+    enum: AssociateStatus,
+    default: AssociateStatus.ACTIVE,
+  })
+  status!: AssociateStatus;
 
   @Column({ type: 'int', default: 0 })
   taskAssigned!: number;

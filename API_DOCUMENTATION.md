@@ -102,20 +102,28 @@ Request body:
 
 ```json
 {
-  "name": "Sarah Ali",
   "email": "sarah@example.com",
-  "role": "associate",
+  "role": "manager",
+  "department": "Sales",
+  "status": "active",
+  "name": "Sarah Ali",
   "lastActive": "2026-04-15T09:00:00.000Z",
   "taskAssigned": 3
 }
 ```
 
-Optional fields:
+Required:
 
-- `phoneNumber`
-- `address`
-- `profilePhoto`
-- `password` (if omitted, backend generates a temporary password)
+- `email`
+- `role` — any short label you use in CRM (examples: `associate`, `manager`, `accountant`)
+- `department`
+
+Optional:
+
+- `name` (if omitted, a display name is derived from the email)
+- `status` — `active` | `inactive` (default `active`)
+- `lastActive`, `taskAssigned`
+- `phoneNumber`, `address`, `profilePhoto`
 
 ### Get All Users
 

@@ -32,10 +32,13 @@ let AssociatesService = class AssociatesService {
         if (existing) {
             throw new common_1.ConflictException('Email already in use');
         }
-        const { firstName, lastName } = this.splitName(createAssociateDto.name);
+        const fallbackName = normalizedEmail.split('@')[0] || 'Associate User';
+        const { firstName, lastName } = this.splitName(createAssociateDto.name ?? fallbackName);
         return this.associateRepository.save(this.associateRepository.create({
             email: normalizedEmail,
-            role: user_role_enum_1.UserRole.ASSOCIATE,
+            role: createAssociateDto.role.trim(),
+            department: createAssociateDto.department,
+            status: createAssociateDto.status ?? associate_profile_entity_1.AssociateStatus.ACTIVE,
             firstName,
             lastName,
             phoneNumber: createAssociateDto.phoneNumber,

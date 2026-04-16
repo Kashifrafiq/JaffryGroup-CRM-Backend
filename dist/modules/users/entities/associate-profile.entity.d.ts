@@ -1,9 +1,12 @@
 import { User } from './user.entity';
-import { UserRole } from './user-role.enum';
+export declare enum AssociateStatus {
+    ACTIVE = "active",
+    INACTIVE = "inactive"
+}
 export declare class AssociateProfile {
     id: string;
     email?: string;
-    role: UserRole;
+    role: string;
     userId?: string;
     user?: User;
     firstName: string;
@@ -13,6 +16,8 @@ export declare class AssociateProfile {
     dateOfBirth?: Date;
     profilePhoto?: string;
     lastActive?: Date;
+    department?: string;
+    status: AssociateStatus;
     taskAssigned: number;
     createdAt: Date;
     updatedAt: Date;
