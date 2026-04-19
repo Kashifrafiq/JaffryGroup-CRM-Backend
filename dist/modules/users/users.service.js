@@ -96,20 +96,27 @@ let UsersService = class UsersService {
             createdBy.role !== user_role_enum_1.UserRole.ASSOCIATE) {
             throw new common_1.ForbiddenException('Only Admin or Associate can create customers');
         }
-        if (createCustomerDto.role !== user_role_enum_1.UserRole.CUSTOMER) {
+        const effectiveRole = createCustomerDto.role ?? user_role_enum_1.UserRole.CUSTOMER;
+        if (effectiveRole !== user_role_enum_1.UserRole.CUSTOMER) {
             throw new common_1.ForbiddenException('Role must be customer');
         }
         const normalizedEmail = createCustomerDto.email.trim().toLowerCase();
         const existing = await this.customerProfileRepository.findOne({ where: { email: normalizedEmail } });
         if (existing)
             throw new common_1.ConflictException('Email already in use');
+        const phone = createCustomerDto.phone?.trim() ?? '';
+        if (!phone) {
+            throw new common_1.BadRequestException('Phone is required');
+        }
         const { firstName, lastName } = this.splitName(createCustomerDto.name);
         return this.customerProfileRepository.save(this.customerProfileRepository.create({
             email: normalizedEmail,
             role: user_role_enum_1.UserRole.CUSTOMER,
             firstName,
             lastName,
-            phoneNumber: createCustomerDto.phoneNumber,
+            phoneNumber: phone,
+            property: createCustomerDto.property.trim(),
+            applicationType: createCustomerDto.applicationType.trim(),
             address: createCustomerDto.address,
             profilePhoto: createCustomerDto.profilePhoto,
         }));
@@ -315,6 +322,8 @@ let UsersService = class UsersService {
             lastName: customer.lastName,
             name: `${customer.firstName} ${customer.lastName}`.trim(),
             phoneNumber: customer.phoneNumber,
+            property: customer.property,
+            applicationType: customer.applicationType,
             address: customer.address,
             dateOfBirth: customer.dateOfBirth,
             profilePhoto: customer.profilePhoto,
@@ -337,6 +346,8 @@ let UsersService = class UsersService {
             lastName: profile.lastName,
             name: `${profile.firstName} ${profile.lastName}`.trim(),
             phoneNumber: profile.phoneNumber,
+            property: profile instanceof customer_profile_entity_1.CustomerProfile ? profile.property : undefined,
+            applicationType: profile instanceof customer_profile_entity_1.CustomerProfile ? profile.applicationType : undefined,
             address: profile.address,
             dateOfBirth: profile.dateOfBirth,
             profilePhoto: profile.profilePhoto,

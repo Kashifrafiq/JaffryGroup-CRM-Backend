@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { UserRole } from '../entities/user-role.enum';
 
 export class CreateCustomerDto {
@@ -9,12 +9,25 @@ export class CreateCustomerDto {
   @IsEmail()
   email!: string;
 
-  @IsEnum(UserRole)
-  role!: UserRole;
-
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  phoneNumber?: string;
+  @MaxLength(64)
+  phone!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(1024)
+  property!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(128)
+  applicationType!: string;
+
+  /** Defaults to `customer` when omitted. */
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 
   @IsOptional()
   @IsString()

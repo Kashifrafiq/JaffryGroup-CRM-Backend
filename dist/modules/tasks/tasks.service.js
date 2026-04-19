@@ -49,6 +49,17 @@ let TasksService = class TasksService {
             order: { createdAt: 'DESC' },
         });
     }
+    async findAssignableAssociates() {
+        const rows = await this.associateRepository.find({
+            where: { status: associate_profile_entity_1.AssociateStatus.ACTIVE },
+            order: { firstName: 'ASC', lastName: 'ASC' },
+            select: ['id', 'firstName', 'lastName'],
+        });
+        return rows.map((a) => ({
+            id: a.id,
+            name: `${a.firstName} ${a.lastName}`.trim(),
+        }));
+    }
     async findOne(id) {
         const task = await this.taskRepository.findOne({
             where: { id },
@@ -108,7 +119,7 @@ let TasksService = class TasksService {
     async ensureAssignee(assigneeId) {
         const id = assigneeId?.trim() ?? '';
         if (!this.isUuid(id)) {
-            throw new common_1.BadRequestException('assignedTo must be a valid UUID (use the id from POST /associates response).');
+            throw new common_1.BadRequestException('assignedTo must be a valid UUID (use GET /tasks/assignees or POST /associates).');
         }
         const associate = await this.associateRepository.findOne({ where: { id } });
         if (!associate) {

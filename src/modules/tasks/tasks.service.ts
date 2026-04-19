@@ -9,7 +9,10 @@ import { Task } from './entities/task.entity';
 import { TaskPriority, TaskStatus } from './entities/task.enums';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
-import { AssociateProfile } from '../users/entities/associate-profile.entity';
+import {
+  AssociateProfile,
+  AssociateStatus,
+} from '../users/entities/associate-profile.entity';
 
 @Injectable()
 export class TasksService {
@@ -45,6 +48,19 @@ export class TasksService {
       relations: ['assignedTo'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /** Associate profile ids for `assignedTo` on create/update task. */
+  async findAssignableAssociates(): Promise<{ id: string; name: string }[]> {
+    const rows = await this.associateRepository.find({
+      where: { status: AssociateStatus.ACTIVE },
+      order: { firstName: 'ASC', lastName: 'ASC' },
+      select: ['id', 'firstName', 'lastName'],
+    });
+    return rows.map((a) => ({
+      id: a.id,
+      name: `${a.firstName} ${a.lastName}`.trim(),
+    }));
   }
 
   async findOne(id: string): Promise<Task> {
@@ -108,7 +124,7 @@ export class TasksService {
     const id = assigneeId?.trim() ?? '';
     if (!this.isUuid(id)) {
       throw new BadRequestException(
-        'assignedTo must be a valid UUID (use the id from POST /associates response).',
+        'assignedTo must be a valid UUID (use GET /tasks/assignees or POST /associates).',
       );
     }
     const associate = await this.associateRepository.findOne({ where: { id } });

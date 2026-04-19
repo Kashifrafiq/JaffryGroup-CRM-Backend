@@ -19,6 +19,7 @@ const roles_guard_1 = require("../../common/guards/roles.guard");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const create_associate_dto_1 = require("./dto/create-associate.dto");
+const update_associate_dto_1 = require("./dto/update-associate.dto");
 const associates_service_1 = require("./associates.service");
 let AssociatesController = class AssociatesController {
     associatesService;
@@ -27,6 +28,18 @@ let AssociatesController = class AssociatesController {
     }
     create(createAssociateDto, req) {
         return this.associatesService.createAssociate(createAssociateDto, req.user);
+    }
+    findAll() {
+        return this.associatesService.findAll();
+    }
+    findOne(id) {
+        return this.associatesService.findOne(id);
+    }
+    update(id, updateAssociateDto) {
+        return this.associatesService.update(id, updateAssociateDto);
+    }
+    remove(id) {
+        return this.associatesService.remove(id);
     }
 };
 exports.AssociatesController = AssociatesController;
@@ -39,6 +52,38 @@ __decorate([
     __metadata("design:paramtypes", [create_associate_dto_1.CreateAssociateDto, Object]),
     __metadata("design:returntype", void 0)
 ], AssociatesController.prototype, "create", null);
+__decorate([
+    (0, common_1.Get)(),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AssociatesController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)(':id'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AssociatesController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_associate_dto_1.UpdateAssociateDto]),
+    __metadata("design:returntype", void 0)
+], AssociatesController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AssociatesController.prototype, "remove", null);
 exports.AssociatesController = AssociatesController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('associates'),

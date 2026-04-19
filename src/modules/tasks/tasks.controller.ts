@@ -24,6 +24,12 @@ export class TasksController {
     return this.tasksService.findAll();
   }
 
+  @Get('assignees')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  listAssignees() {
+    return this.tasksService.findAssignableAssociates();
+  }
+
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
   findOne(@Param('id') id: string) {

@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -28,6 +29,8 @@ type UserView = {
   lastName: string;
   name: string;
   phoneNumber?: string;
+  property?: string;
+  applicationType?: string;
   address?: string;
   dateOfBirth?: Date;
   profilePhoto?: string;
@@ -92,13 +95,19 @@ export class UsersService {
     ) {
       throw new ForbiddenException('Only Admin or Associate can create customers');
     }
-    if (createCustomerDto.role !== UserRole.CUSTOMER) {
+    const effectiveRole = createCustomerDto.role ?? UserRole.CUSTOMER;
+    if (effectiveRole !== UserRole.CUSTOMER) {
       throw new ForbiddenException('Role must be customer');
     }
 
     const normalizedEmail = createCustomerDto.email.trim().toLowerCase();
     const existing = await this.customerProfileRepository.findOne({ where: { email: normalizedEmail } });
     if (existing) throw new ConflictException('Email already in use');
+
+    const phone = createCustomerDto.phone?.trim() ?? '';
+    if (!phone) {
+      throw new BadRequestException('Phone is required');
+    }
 
     const { firstName, lastName } = this.splitName(createCustomerDto.name);
     return this.customerProfileRepository.save(
@@ -107,7 +116,9 @@ export class UsersService {
         role: UserRole.CUSTOMER,
         firstName,
         lastName,
-        phoneNumber: createCustomerDto.phoneNumber,
+        phoneNumber: phone,
+        property: createCustomerDto.property.trim(),
+        applicationType: createCustomerDto.applicationType.trim(),
         address: createCustomerDto.address,
         profilePhoto: createCustomerDto.profilePhoto,
       }),
@@ -356,6 +367,8 @@ export class UsersService {
       lastName: customer.lastName,
       name: `${customer.firstName} ${customer.lastName}`.trim(),
       phoneNumber: customer.phoneNumber,
+      property: customer.property,
+      applicationType: customer.applicationType,
       address: customer.address,
       dateOfBirth: customer.dateOfBirth,
       profilePhoto: customer.profilePhoto,
@@ -380,6 +393,9 @@ export class UsersService {
       lastName: profile.lastName,
       name: `${profile.firstName} ${profile.lastName}`.trim(),
       phoneNumber: profile.phoneNumber,
+      property: profile instanceof CustomerProfile ? profile.property : undefined,
+      applicationType:
+        profile instanceof CustomerProfile ? profile.applicationType : undefined,
       address: profile.address,
       dateOfBirth: profile.dateOfBirth,
       profilePhoto: profile.profilePhoto,

@@ -42,6 +42,14 @@ export class CustomerProfile {
   @Column({ nullable: true })
   phoneNumber?: string;
 
+  /** Property address or description for the application. */
+  @Column({ type: 'varchar', length: 1024, nullable: true })
+  property?: string;
+
+  /** e.g. purchase, refinance — stored as free text for flexibility. */
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  applicationType?: string;
+
   @Column({ nullable: true })
   address?: string;
 

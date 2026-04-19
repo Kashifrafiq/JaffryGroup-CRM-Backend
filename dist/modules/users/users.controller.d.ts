@@ -23,6 +23,8 @@ export declare class UsersController {
         lastName: string;
         name: string;
         phoneNumber?: string;
+        property?: string;
+        applicationType?: string;
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;
@@ -43,6 +45,8 @@ export declare class UsersController {
         lastName: string;
         name: string;
         phoneNumber?: string;
+        property?: string;
+        applicationType?: string;
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;
@@ -62,6 +66,8 @@ export declare class UsersController {
         lastName: string;
         name: string;
         phoneNumber?: string;
+        property?: string;
+        applicationType?: string;
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;
@@ -79,6 +85,8 @@ export declare class UsersController {
         lastName: string;
         name: string;
         phoneNumber?: string;
+        property?: string;
+        applicationType?: string;
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;
@@ -96,6 +104,8 @@ export declare class UsersController {
         lastName: string;
         name: string;
         phoneNumber?: string;
+        property?: string;
+        applicationType?: string;
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;

@@ -9,6 +9,10 @@ export declare class TasksService {
     constructor(taskRepository: Repository<Task>, associateRepository: Repository<AssociateProfile>);
     create(createTaskDto: CreateTaskDto): Promise<Task>;
     findAll(): Promise<Task[]>;
+    findAssignableAssociates(): Promise<{
+        id: string;
+        name: string;
+    }[]>;
     findOne(id: string): Promise<Task>;
     update(id: string, updateTaskDto: UpdateTaskDto): Promise<Task>;
     remove(id: string): Promise<void>;

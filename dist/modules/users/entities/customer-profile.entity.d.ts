@@ -9,6 +9,8 @@ export declare class CustomerProfile {
     firstName: string;
     lastName: string;
     phoneNumber?: string;
+    property?: string;
+    applicationType?: string;
     address?: string;
     dateOfBirth?: Date;
     profilePhoto?: string;
