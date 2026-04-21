@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { User } from './user.entity';
 import { UserRole } from './user-role.enum';
+import type { CustomerApplication } from '../../customers/entities/customer-application.entity';
 
 @Entity('customers')
 export class CustomerProfile {
@@ -46,9 +48,15 @@ export class CustomerProfile {
   @Column({ type: 'varchar', length: 1024, nullable: true })
   property?: string;
 
-  /** e.g. purchase, refinance — stored as free text for flexibility. */
+  /**
+   * @deprecated Use `customer_applications` + `application_types`. Kept for legacy rows only.
+   */
   @Column({ type: 'varchar', length: 128, nullable: true })
   applicationType?: string;
+
+  /** Resolved at runtime via entity name to avoid circular imports. */
+  @OneToMany('CustomerApplication', 'customer')
+  applications?: CustomerApplication[];
 
   @Column({ nullable: true })
   address?: string;

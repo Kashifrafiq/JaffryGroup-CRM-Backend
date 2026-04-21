@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, ValidateIf } from 'class-validator';
 import { UserRole } from '../entities/user-role.enum';
 
 export class CreateCustomerDto {
@@ -19,10 +19,20 @@ export class CreateCustomerDto {
   @MaxLength(1024)
   property!: string;
 
+  @ValidateIf((o) => !o.applicationTypeId && !o.applicationTypeCode)
   @IsNotEmpty()
   @IsString()
   @MaxLength(128)
-  applicationType!: string;
+  applicationType?: string;
+
+  @IsOptional()
+  @IsUUID()
+  applicationTypeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  applicationTypeCode?: string;
 
   /** Defaults to `customer` when omitted. */
   @IsOptional()

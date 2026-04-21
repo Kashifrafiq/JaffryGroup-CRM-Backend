@@ -56,18 +56,21 @@ const admin_profile_entity_1 = require("./entities/admin-profile.entity");
 const associate_profile_entity_1 = require("./entities/associate-profile.entity");
 const customer_profile_entity_1 = require("./entities/customer-profile.entity");
 const associate_customer_entity_1 = require("./entities/associate-customer.entity");
+const customers_service_1 = require("../customers/customers.service");
 let UsersService = class UsersService {
     userRepository;
     adminProfileRepository;
     associateProfileRepository;
     customerProfileRepository;
     associateCustomerRepository;
-    constructor(userRepository, adminProfileRepository, associateProfileRepository, customerProfileRepository, associateCustomerRepository) {
+    customersService;
+    constructor(userRepository, adminProfileRepository, associateProfileRepository, customerProfileRepository, associateCustomerRepository, customersService) {
         this.userRepository = userRepository;
         this.adminProfileRepository = adminProfileRepository;
         this.associateProfileRepository = associateProfileRepository;
         this.customerProfileRepository = customerProfileRepository;
         this.associateCustomerRepository = associateCustomerRepository;
+        this.customersService = customersService;
     }
     async create(createUserDto, createdBy) {
         if (createUserDto.role === user_role_enum_1.UserRole.ASSOCIATE || createUserDto.role === user_role_enum_1.UserRole.CUSTOMER) {
@@ -91,35 +94,7 @@ let UsersService = class UsersService {
         return this.toUserView(savedUser, profile);
     }
     async createCustomer(createCustomerDto, createdBy) {
-        if (createdBy &&
-            createdBy.role !== user_role_enum_1.UserRole.ADMIN &&
-            createdBy.role !== user_role_enum_1.UserRole.ASSOCIATE) {
-            throw new common_1.ForbiddenException('Only Admin or Associate can create customers');
-        }
-        const effectiveRole = createCustomerDto.role ?? user_role_enum_1.UserRole.CUSTOMER;
-        if (effectiveRole !== user_role_enum_1.UserRole.CUSTOMER) {
-            throw new common_1.ForbiddenException('Role must be customer');
-        }
-        const normalizedEmail = createCustomerDto.email.trim().toLowerCase();
-        const existing = await this.customerProfileRepository.findOne({ where: { email: normalizedEmail } });
-        if (existing)
-            throw new common_1.ConflictException('Email already in use');
-        const phone = createCustomerDto.phone?.trim() ?? '';
-        if (!phone) {
-            throw new common_1.BadRequestException('Phone is required');
-        }
-        const { firstName, lastName } = this.splitName(createCustomerDto.name);
-        return this.customerProfileRepository.save(this.customerProfileRepository.create({
-            email: normalizedEmail,
-            role: user_role_enum_1.UserRole.CUSTOMER,
-            firstName,
-            lastName,
-            phoneNumber: phone,
-            property: createCustomerDto.property.trim(),
-            applicationType: createCustomerDto.applicationType.trim(),
-            address: createCustomerDto.address,
-            profilePhoto: createCustomerDto.profilePhoto,
-        }));
+        return this.customersService.createFromLegacyDto(createCustomerDto, createdBy);
     }
     async findAll() {
         const users = await this.userRepository.find({
@@ -384,6 +359,7 @@ exports.UsersService = UsersService = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        customers_service_1.CustomersService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

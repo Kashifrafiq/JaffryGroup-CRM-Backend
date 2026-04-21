@@ -1,5 +1,6 @@
 import { User } from './user.entity';
 import { UserRole } from './user-role.enum';
+import type { CustomerApplication } from '../../customers/entities/customer-application.entity';
 export declare class CustomerProfile {
     id: string;
     email?: string;
@@ -11,6 +12,7 @@ export declare class CustomerProfile {
     phoneNumber?: string;
     property?: string;
     applicationType?: string;
+    applications?: CustomerApplication[];
     address?: string;
     dateOfBirth?: Date;
     profilePhoto?: string;

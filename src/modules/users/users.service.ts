@@ -3,7 +3,6 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -17,6 +16,7 @@ import { AssociateCustomer } from './entities/associate-customer.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CustomersService } from '../customers/customers.service';
 
 type UserProfile = AdminProfile | AssociateProfile | CustomerProfile;
 
@@ -53,6 +53,7 @@ export class UsersService {
     private readonly customerProfileRepository: Repository<CustomerProfile>,
     @InjectRepository(AssociateCustomer)
     private readonly associateCustomerRepository: Repository<AssociateCustomer>,
+    private readonly customersService: CustomersService,
   ) {}
 
   async create(
@@ -88,41 +89,7 @@ export class UsersService {
     createCustomerDto: CreateCustomerDto,
     createdBy?: Pick<User, 'id' | 'role'>,
   ): Promise<CustomerProfile> {
-    if (
-      createdBy &&
-      createdBy.role !== UserRole.ADMIN &&
-      createdBy.role !== UserRole.ASSOCIATE
-    ) {
-      throw new ForbiddenException('Only Admin or Associate can create customers');
-    }
-    const effectiveRole = createCustomerDto.role ?? UserRole.CUSTOMER;
-    if (effectiveRole !== UserRole.CUSTOMER) {
-      throw new ForbiddenException('Role must be customer');
-    }
-
-    const normalizedEmail = createCustomerDto.email.trim().toLowerCase();
-    const existing = await this.customerProfileRepository.findOne({ where: { email: normalizedEmail } });
-    if (existing) throw new ConflictException('Email already in use');
-
-    const phone = createCustomerDto.phone?.trim() ?? '';
-    if (!phone) {
-      throw new BadRequestException('Phone is required');
-    }
-
-    const { firstName, lastName } = this.splitName(createCustomerDto.name);
-    return this.customerProfileRepository.save(
-      this.customerProfileRepository.create({
-        email: normalizedEmail,
-        role: UserRole.CUSTOMER,
-        firstName,
-        lastName,
-        phoneNumber: phone,
-        property: createCustomerDto.property.trim(),
-        applicationType: createCustomerDto.applicationType.trim(),
-        address: createCustomerDto.address,
-        profilePhoto: createCustomerDto.profilePhoto,
-      }),
-    );
+    return this.customersService.createFromLegacyDto(createCustomerDto, createdBy);
   }
 
   async findAll(): Promise<UserView[]> {

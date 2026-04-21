@@ -24,6 +24,7 @@ let CustomerProfile = class CustomerProfile {
     phoneNumber;
     property;
     applicationType;
+    applications;
     address;
     dateOfBirth;
     profilePhoto;
@@ -76,6 +77,10 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 128, nullable: true }),
     __metadata("design:type", String)
 ], CustomerProfile.prototype, "applicationType", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)('CustomerApplication', 'customer'),
+    __metadata("design:type", Array)
+], CustomerProfile.prototype, "applications", void 0);
 __decorate([
     (0, typeorm_1.Column)({ nullable: true }),
     __metadata("design:type", String)

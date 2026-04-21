@@ -8,6 +8,7 @@ import { AssociateCustomer } from './entities/associate-customer.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CustomersService } from '../customers/customers.service';
 type UserView = {
     id: string;
     email: string;
@@ -33,7 +34,8 @@ export declare class UsersService {
     private readonly associateProfileRepository;
     private readonly customerProfileRepository;
     private readonly associateCustomerRepository;
-    constructor(userRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>, associateCustomerRepository: Repository<AssociateCustomer>);
+    private readonly customersService;
+    constructor(userRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>, associateCustomerRepository: Repository<AssociateCustomer>, customersService: CustomersService);
     create(createUserDto: CreateUserDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<UserView>;
     createCustomer(createCustomerDto: CreateCustomerDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<CustomerProfile>;
     findAll(): Promise<UserView[]>;

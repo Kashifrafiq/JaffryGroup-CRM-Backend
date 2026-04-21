@@ -16,6 +16,8 @@ const auth_module_1 = require("./modules/auth/auth.module");
 const users_module_1 = require("./modules/users/users.module");
 const tasks_module_1 = require("./modules/tasks/tasks.module");
 const associates_module_1 = require("./modules/associates/associates.module");
+const applications_module_1 = require("./modules/applications/applications.module");
+const customers_module_1 = require("./modules/customers/customers.module");
 const isTruthy = (value, defaultValue = false) => {
     if (value === undefined)
         return defaultValue;
@@ -55,6 +57,8 @@ exports.AppModule = AppModule = __decorate([
             auth_module_1.AuthModule,
             users_module_1.UsersModule,
             associates_module_1.AssociatesModule,
+            applications_module_1.ApplicationsModule,
+            customers_module_1.CustomersModule,
             tasks_module_1.TasksModule,
         ],
         controllers: [app_controller_1.AppController],

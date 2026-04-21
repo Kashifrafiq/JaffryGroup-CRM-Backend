@@ -136,6 +136,16 @@ let UsersSeedService = UsersSeedService_1 = class UsersSeedService {
                 await this.adminProfileRepository.save(this.adminProfileRepository.create(baseProfile));
             }
             else if (user.role === user_role_enum_1.UserRole.ASSOCIATE) {
+                const existingAssociateProfile = await this.associateProfileRepository.findOne({
+                    where: [{ userId: user.id }, { email: user.email }],
+                });
+                if (existingAssociateProfile) {
+                    if (!existingAssociateProfile.userId) {
+                        existingAssociateProfile.userId = user.id;
+                        await this.associateProfileRepository.save(existingAssociateProfile);
+                    }
+                    continue;
+                }
                 await this.associateProfileRepository.save(this.associateProfileRepository.create({
                     ...baseProfile,
                     email: user.email,
@@ -143,6 +153,16 @@ let UsersSeedService = UsersSeedService_1 = class UsersSeedService {
                 }));
             }
             else if (user.role === user_role_enum_1.UserRole.CUSTOMER) {
+                const existingCustomerProfile = await this.customerProfileRepository.findOne({
+                    where: [{ userId: user.id }, { email: user.email }],
+                });
+                if (existingCustomerProfile) {
+                    if (!existingCustomerProfile.userId) {
+                        existingCustomerProfile.userId = user.id;
+                        await this.customerProfileRepository.save(existingCustomerProfile);
+                    }
+                    continue;
+                }
                 await this.customerProfileRepository.save(this.customerProfileRepository.create({
                     ...baseProfile,
                     email: user.email,

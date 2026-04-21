@@ -7,6 +7,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { AssociatesModule } from './modules/associates/associates.module';
+import { ApplicationsModule } from './modules/applications/applications.module';
+import { CustomersModule } from './modules/customers/customers.module';
 
 const isTruthy = (value: string | undefined, defaultValue = false): boolean => {
   if (value === undefined) return defaultValue;
@@ -48,6 +50,8 @@ const isTruthy = (value: string | undefined, defaultValue = false): boolean => {
     AuthModule,
     UsersModule,
     AssociatesModule,
+    ApplicationsModule,
+    CustomersModule,
     TasksModule,
   ],
   controllers: [AppController],

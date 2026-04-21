@@ -4,7 +4,9 @@ export declare class CreateCustomerDto {
     email: string;
     phone: string;
     property: string;
-    applicationType: string;
+    applicationType?: string;
+    applicationTypeId?: string;
+    applicationTypeCode?: string;
     role?: UserRole;
     address?: string;
     profilePhoto?: string;
