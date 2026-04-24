@@ -13,4 +13,5 @@ export declare class ApplicationWorkflowTemplatesSeedService {
     seedTemplates(): Promise<void>;
     private syncPipelineTemplates;
     private syncDocumentTemplates;
+    private getRequirementReferenceCounts;
 }

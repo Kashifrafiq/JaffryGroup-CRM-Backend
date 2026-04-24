@@ -33,11 +33,14 @@ export declare class CustomersService {
     updateApplication(customerId: string, applicationId: string, dto: UpdateCustomerApplicationDto, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerDetail']>>;
     removeApplication(customerId: string, applicationId: string, actor: JwtActor): Promise<void>;
     private queryCustomersWithFilters;
+    private queryCustomersWithFiltersForList;
     private intersectIdSets;
     private customerIdsForAssociateUser;
     private assertCanAccessCustomer;
     private assertAdminOrAssociate;
     private assertEmailAvailable;
+    private resolveAssociateAssignmentOnCreate;
+    private attachAssignedAssociates;
     private resolveApplicationType;
     private resolveApplicationTypeForLegacy;
     private resolveTypeFromLegacyLabel;

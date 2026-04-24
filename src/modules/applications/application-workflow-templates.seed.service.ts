@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ApplicationType } from './entities/application-type.entity';
 import { ApplicationPipelineStepTemplate } from './entities/application-pipeline-step-template.entity';
 import { ApplicationDocumentRequirement } from './entities/application-document-requirement.entity';
@@ -36,16 +36,18 @@ export class ApplicationWorkflowTemplatesSeedService {
   private async syncPipelineTemplates(applicationTypeId: string, code: string): Promise<void> {
     const titles = [...pipelineTitlesForApplicationTypeCode(code)];
     await this.pipelineTemplateRepository.delete({ applicationTypeId });
-    let stepIndex = 0;
-    for (const title of titles) {
-      await this.pipelineTemplateRepository.save(
+    if (!titles.length) {
+      return;
+    }
+    await this.pipelineTemplateRepository.save(
+      titles.map((title, stepIndex) =>
         this.pipelineTemplateRepository.create({
           applicationTypeId,
-          stepIndex: stepIndex++,
+          stepIndex,
           title,
         }),
-      );
-    }
+      ),
+    );
   }
 
   private async syncDocumentTemplates(applicationTypeId: string, code: string): Promise<void> {
@@ -53,6 +55,7 @@ export class ApplicationWorkflowTemplatesSeedService {
     const existing = await this.documentRequirementRepository.find({
       where: { applicationTypeId },
     });
+    const referencedCounts = await this.getRequirementReferenceCounts(existing.map((r) => r.id));
     const existingByKey = new Map(existing.map((r) => [r.requirementKey, r]));
 
     const desiredKeys = new Set<string>();
@@ -66,22 +69,25 @@ export class ApplicationWorkflowTemplatesSeedService {
     }
 
     if (!sections?.length) {
+      const deletableIds: string[] = [];
       for (const row of existing) {
-        const refCount = await this.customerApplicationDocumentRepository.count({
-          where: { documentRequirementId: row.id },
-        });
+        const refCount = referencedCounts.get(row.id) ?? 0;
         if (refCount === 0) {
-          await this.documentRequirementRepository.delete({ id: row.id });
+          deletableIds.push(row.id);
         } else {
           this.logger.warn(
             `Skipping delete of document requirement "${row.requirementKey}" (${row.id}); still referenced by ${refCount} customer document row(s).`,
           );
         }
       }
+      if (deletableIds.length) {
+        await this.documentRequirementRepository.delete({ id: In(deletableIds) });
+      }
       return;
     }
 
     let sortOrder = 0;
+    const rowsToSave: ApplicationDocumentRequirement[] = [];
     for (let si = 0; si < sections.length; si++) {
       const section = sections[si];
       for (let ii = 0; ii < section.items.length; ii++) {
@@ -92,9 +98,9 @@ export class ApplicationWorkflowTemplatesSeedService {
           prev.sectionTitle = section.sectionTitle;
           prev.itemLabel = itemLabel;
           prev.sortOrder = sortOrder++;
-          await this.documentRequirementRepository.save(prev);
+          rowsToSave.push(prev);
         } else {
-          await this.documentRequirementRepository.save(
+          rowsToSave.push(
             this.documentRequirementRepository.create({
               applicationTypeId,
               requirementKey,
@@ -106,21 +112,41 @@ export class ApplicationWorkflowTemplatesSeedService {
         }
       }
     }
+    if (rowsToSave.length) {
+      await this.documentRequirementRepository.save(rowsToSave);
+    }
 
+    const staleDeletableIds: string[] = [];
     for (const row of existing) {
       if (desiredKeys.has(row.requirementKey)) {
         continue;
       }
-      const refCount = await this.customerApplicationDocumentRepository.count({
-        where: { documentRequirementId: row.id },
-      });
+      const refCount = referencedCounts.get(row.id) ?? 0;
       if (refCount === 0) {
-        await this.documentRequirementRepository.delete({ id: row.id });
+        staleDeletableIds.push(row.id);
       } else {
         this.logger.warn(
           `Keeping stale document requirement "${row.requirementKey}" (${row.id}); still referenced by ${refCount} customer document row(s).`,
         );
       }
     }
+    if (staleDeletableIds.length) {
+      await this.documentRequirementRepository.delete({ id: In(staleDeletableIds) });
+    }
+  }
+
+  private async getRequirementReferenceCounts(requirementIds: string[]): Promise<Map<string, number>> {
+    if (!requirementIds.length) {
+      return new Map();
+    }
+    const raw = await this.customerApplicationDocumentRepository
+      .createQueryBuilder('cad')
+      .select('cad.documentRequirementId', 'id')
+      .addSelect('COUNT(*)', 'count')
+      .where('cad.documentRequirementId IN (:...ids)', { ids: requirementIds })
+      .groupBy('cad.documentRequirementId')
+      .getRawMany<{ id: string; count: string }>();
+
+    return new Map(raw.map((row) => [row.id, Number(row.count)]));
   }
 }

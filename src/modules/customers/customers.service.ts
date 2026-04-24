@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { UserRole } from '../users/entities/user-role.enum';
 import { User } from '../users/entities/user.entity';
@@ -63,6 +63,7 @@ export class CustomersService {
 
     const phone = dto.phone.trim();
     const { firstName, lastName } = this.splitName(dto.name);
+    const associateId = await this.resolveAssociateAssignmentOnCreate(dto, createdBy);
 
     const customer = await this.dataSource.transaction(async (em) => {
       const c = em.create(CustomerProfile, {
@@ -89,6 +90,20 @@ export class CustomersService {
         savedApp.id,
         appType.id,
       );
+      if (associateId) {
+        const existingLink = await em.findOne(AssociateCustomer, {
+          where: { associateId, customerId: saved.id },
+        });
+        if (!existingLink) {
+          await em.save(
+            AssociateCustomer,
+            em.create(AssociateCustomer, {
+              associateId,
+              customerId: saved.id,
+            }),
+          );
+        }
+      }
       return saved;
     });
 
@@ -154,16 +169,18 @@ export class CustomersService {
     this.assertAdminOrAssociate(actor);
 
     if (actor.role === UserRole.ADMIN) {
-      const customers = await this.queryCustomersWithFilters(query, undefined);
-      return Promise.all(customers.map((c) => this.toCustomerDetail(c)));
+      const customers = await this.queryCustomersWithFiltersForList(query, undefined);
+      const details = await Promise.all(customers.map((c) => this.toCustomerDetail(c)));
+      return this.attachAssignedAssociates(details);
     }
 
     const ids = await this.customerIdsForAssociateUser(actor.id);
     if (!ids.length) {
       return [];
     }
-    const customers = await this.queryCustomersWithFilters(query, ids);
-    return Promise.all(customers.map((c) => this.toCustomerDetail(c)));
+    const customers = await this.queryCustomersWithFiltersForList(query, ids);
+    const details = await Promise.all(customers.map((c) => this.toCustomerDetail(c)));
+    return this.attachAssignedAssociates(details);
   }
 
   async findOneDetail(customerId: string, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerDetail']>> {
@@ -182,7 +199,9 @@ export class CustomersService {
       throw new NotFoundException(`Customer #${customerId} not found`);
     }
     await this.assertCanAccessCustomer(actor, customerId);
-    return this.toCustomerDetail(customer);
+    const detail = await this.toCustomerDetail(customer);
+    const [withAssociates] = await this.attachAssignedAssociates([detail]);
+    return withAssociates;
   }
 
   async updateCustomer(
@@ -404,6 +423,55 @@ export class CustomersService {
     return qb.getMany();
   }
 
+  private async queryCustomersWithFiltersForList(
+    query: ListCustomersQueryDto,
+    restrictToCustomerIds: string[] | undefined,
+  ): Promise<CustomerProfile[]> {
+    let candidateIds: string[] | undefined = restrictToCustomerIds;
+
+    if (query.applicationTypeId) {
+      const rows = await this.applicationRepository.find({
+        where: { applicationTypeId: query.applicationTypeId },
+        select: ['customerId'],
+      });
+      const matched = [...new Set(rows.map((r) => r.customerId))];
+      candidateIds = this.intersectIdSets(candidateIds, matched);
+    }
+
+    if (query.applicationTypeCode?.trim()) {
+      const type = await this.applicationTypesService.findActiveByCode(query.applicationTypeCode.trim());
+      if (!type) {
+        return [];
+      }
+      const rows = await this.applicationRepository.find({
+        where: { applicationTypeId: type.id },
+        select: ['customerId'],
+      });
+      const matched = [...new Set(rows.map((r) => r.customerId))];
+      candidateIds = this.intersectIdSets(candidateIds, matched);
+    }
+
+    if (candidateIds !== undefined && candidateIds.length === 0) {
+      return [];
+    }
+
+    const qb = this.customerRepository
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.applications', 'app')
+      .leftJoinAndSelect('app.applicationType', 't')
+      .orderBy('c.createdAt', 'DESC');
+
+    if (candidateIds?.length) {
+      qb.andWhere('c.id IN (:...ids)', { ids: candidateIds });
+    }
+
+    if (query.email?.trim()) {
+      qb.andWhere('LOWER(c.email) LIKE LOWER(:email)', { email: `%${query.email.trim()}%` });
+    }
+
+    return qb.getMany();
+  }
+
   private intersectIdSets(
     base: string[] | undefined,
     matched: string[],
@@ -459,6 +527,83 @@ export class CustomersService {
     if (existing) {
       throw new ConflictException('Email already in use');
     }
+  }
+
+  private async resolveAssociateAssignmentOnCreate(
+    dto: CreateCustomerApiDto,
+    actor: JwtActor,
+  ): Promise<string | undefined> {
+    const requestedAssociateId = dto.associateId?.trim();
+
+    if (actor.role === UserRole.ADMIN) {
+      if (!requestedAssociateId) {
+        return undefined;
+      }
+      const associate = await this.associateProfileRepository.findOne({
+        where: { id: requestedAssociateId },
+      });
+      if (!associate) {
+        throw new NotFoundException(`Associate #${requestedAssociateId} not found`);
+      }
+      return associate.id;
+    }
+
+    if (actor.role !== UserRole.ASSOCIATE) {
+      return undefined;
+    }
+
+    const ownAssociateProfile = await this.associateProfileRepository.findOne({
+      where: { userId: actor.id },
+    });
+    if (!ownAssociateProfile) {
+      throw new ForbiddenException('Associate profile not found for current user');
+    }
+    if (requestedAssociateId && requestedAssociateId !== ownAssociateProfile.id) {
+      throw new ForbiddenException('Associates can only assign created customers to themselves');
+    }
+    return ownAssociateProfile.id;
+  }
+
+  private async attachAssignedAssociates(
+    customers: Array<ReturnType<CustomersService['toCustomerDetail']>>,
+  ): Promise<Array<ReturnType<CustomersService['toCustomerDetail']>>> {
+    if (!customers.length) {
+      return customers;
+    }
+
+    const customerIds = customers.map((c) => c.id);
+    const links = await this.associateCustomerRepository.find({
+      where: { customerId: In(customerIds) },
+    });
+    const uniqueAssociateIds = [...new Set(links.map((l) => l.associateId))];
+    const associates = uniqueAssociateIds.length
+      ? await this.associateProfileRepository.find({
+          where: { id: In(uniqueAssociateIds) },
+        })
+      : [];
+    const associateById = new Map(associates.map((a) => [a.id, a]));
+    const linksByCustomerId = new Map<string, typeof links>();
+    for (const link of links) {
+      const rows = linksByCustomerId.get(link.customerId) ?? [];
+      rows.push(link);
+      linksByCustomerId.set(link.customerId, rows);
+    }
+
+    return customers.map((customer) => {
+      const assignedAssociates = (linksByCustomerId.get(customer.id) ?? [])
+        .map((link) => associateById.get(link.associateId))
+        .filter((a): a is AssociateProfile => !!a)
+        .map((a) => ({
+          id: a.id,
+          email: a.email ?? '',
+          firstName: a.firstName,
+          lastName: a.lastName,
+          name: `${a.firstName} ${a.lastName}`.trim(),
+          role: a.role,
+          status: a.status,
+        }));
+      return { ...customer, assignedAssociates };
+    });
   }
 
   private async resolveApplicationType(input: {

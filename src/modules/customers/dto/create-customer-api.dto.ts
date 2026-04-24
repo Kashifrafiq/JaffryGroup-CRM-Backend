@@ -43,4 +43,8 @@ export class CreateCustomerApiDto {
   @IsOptional()
   @IsString()
   profilePhoto?: string;
+
+  @IsOptional()
+  @IsUUID()
+  associateId?: string;
 }

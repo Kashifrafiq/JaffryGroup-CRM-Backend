@@ -10,4 +10,5 @@ export declare class CreateCustomerApiDto {
     pipeline?: Record<string, unknown>;
     address?: string;
     profilePhoto?: string;
+    associateId?: string;
 }

@@ -23,6 +23,7 @@ class CreateCustomerApiDto {
     pipeline;
     address;
     profilePhoto;
+    associateId;
 }
 exports.CreateCustomerApiDto = CreateCustomerApiDto;
 __decorate([
@@ -77,4 +78,9 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateCustomerApiDto.prototype, "profilePhoto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CreateCustomerApiDto.prototype, "associateId", void 0);
 //# sourceMappingURL=create-customer-api.dto.js.map
