@@ -15,6 +15,7 @@ var ApplicationsSeedService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ApplicationsSeedService = void 0;
 const common_1 = require("@nestjs/common");
+const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const application_type_entity_1 = require("./entities/application-type.entity");
@@ -33,12 +34,18 @@ const APPLICATION_TYPE_SEEDS = [
 let ApplicationsSeedService = ApplicationsSeedService_1 = class ApplicationsSeedService {
     applicationTypeRepository;
     workflowTemplatesSeed;
+    configService;
     logger = new common_1.Logger(ApplicationsSeedService_1.name);
-    constructor(applicationTypeRepository, workflowTemplatesSeed) {
+    constructor(applicationTypeRepository, workflowTemplatesSeed, configService) {
         this.applicationTypeRepository = applicationTypeRepository;
         this.workflowTemplatesSeed = workflowTemplatesSeed;
+        this.configService = configService;
     }
     async onApplicationBootstrap() {
+        if (!this.shouldRunBootstrapSeeds()) {
+            this.logger.log('Skipping application seeds on bootstrap (RUN_BOOTSTRAP_SEEDS=false)');
+            return;
+        }
         for (const row of APPLICATION_TYPE_SEEDS) {
             const existing = await this.applicationTypeRepository.findOne({
                 where: { code: row.code },
@@ -63,12 +70,17 @@ let ApplicationsSeedService = ApplicationsSeedService_1 = class ApplicationsSeed
         this.logger.log(`Seeded ${APPLICATION_TYPE_SEEDS.length} application types (upsert by code)`);
         await this.workflowTemplatesSeed.seedTemplates();
     }
+    shouldRunBootstrapSeeds() {
+        const raw = this.configService.get('RUN_BOOTSTRAP_SEEDS', 'true');
+        return ['true', '1', 'yes', 'on'].includes(raw.trim().toLowerCase());
+    }
 };
 exports.ApplicationsSeedService = ApplicationsSeedService;
 exports.ApplicationsSeedService = ApplicationsSeedService = ApplicationsSeedService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(application_type_entity_1.ApplicationType)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        application_workflow_templates_seed_service_1.ApplicationWorkflowTemplatesSeedService])
+        application_workflow_templates_seed_service_1.ApplicationWorkflowTemplatesSeedService,
+        config_1.ConfigService])
 ], ApplicationsSeedService);
 //# sourceMappingURL=applications.seed.service.js.map

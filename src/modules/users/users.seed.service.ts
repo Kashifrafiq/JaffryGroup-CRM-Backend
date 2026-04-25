@@ -37,6 +37,11 @@ export class UsersSeedService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    if (!this.shouldRunBootstrapSeeds()) {
+      this.logger.log('Skipping user/profile seeds on bootstrap (RUN_BOOTSTRAP_SEEDS=false)');
+      return;
+    }
+
     await this.consolidateUserTables();
     await this.backfillProfilesForExistingUsers();
     await this.dropLegacyProfileTables();
@@ -82,6 +87,11 @@ export class UsersSeedService implements OnApplicationBootstrap {
       }),
     );
     this.logger.log(`Seeded default admin user: ${adminEmail}`);
+  }
+
+  private shouldRunBootstrapSeeds(): boolean {
+    const raw = this.configService.get<string>('RUN_BOOTSTRAP_SEEDS', 'true');
+    return ['true', '1', 'yes', 'on'].includes(raw.trim().toLowerCase());
   }
 
   private async backfillProfilesForExistingUsers(): Promise<void> {

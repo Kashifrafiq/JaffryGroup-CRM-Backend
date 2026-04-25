@@ -22,17 +22,17 @@ export declare class CustomersService {
     private readonly applicationWorkflowService;
     private readonly customerApplicationWorkflowService;
     private readonly dataSource;
+    private readonly logger;
     constructor(customerRepository: Repository<CustomerProfile>, applicationRepository: Repository<CustomerApplication>, associateCustomerRepository: Repository<AssociateCustomer>, associateProfileRepository: Repository<AssociateProfile>, applicationTypesService: ApplicationTypesService, applicationWorkflowService: ApplicationWorkflowService, customerApplicationWorkflowService: CustomerApplicationWorkflowService, dataSource: DataSource);
-    create(dto: CreateCustomerApiDto, createdBy: JwtActor): Promise<ReturnType<CustomersService['toCustomerDetail']>>;
+    create(dto: CreateCustomerApiDto, createdBy: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>>;
     createFromLegacyDto(dto: CreateCustomerDto, createdBy?: JwtActor): Promise<CustomerProfile>;
-    findAll(actor: JwtActor, query: ListCustomersQueryDto): Promise<ReturnType<CustomersService['toCustomerDetail']>[]>;
-    findOneDetail(customerId: string, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerDetail']>>;
-    updateCustomer(customerId: string, dto: UpdateCustomerDto, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerDetail']>>;
+    findAll(actor: JwtActor, query: ListCustomersQueryDto): Promise<ReturnType<CustomersService['toCustomerSummary']>[]>;
+    findOneDetail(customerId: string, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>>;
+    updateCustomer(customerId: string, dto: UpdateCustomerDto, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>>;
     removeCustomer(customerId: string, actor: JwtActor): Promise<void>;
-    addApplication(customerId: string, dto: CreateCustomerApplicationDto, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerDetail']>>;
-    updateApplication(customerId: string, applicationId: string, dto: UpdateCustomerApplicationDto, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerDetail']>>;
+    addApplication(customerId: string, dto: CreateCustomerApplicationDto, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>>;
+    updateApplication(customerId: string, applicationId: string, dto: UpdateCustomerApplicationDto, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>>;
     removeApplication(customerId: string, applicationId: string, actor: JwtActor): Promise<void>;
-    private queryCustomersWithFilters;
     private queryCustomersWithFiltersForList;
     private intersectIdSets;
     private customerIdsForAssociateUser;
@@ -45,5 +45,5 @@ export declare class CustomersService {
     private resolveApplicationTypeForLegacy;
     private resolveTypeFromLegacyLabel;
     private splitName;
-    private toCustomerDetail;
+    private toCustomerSummary;
 }

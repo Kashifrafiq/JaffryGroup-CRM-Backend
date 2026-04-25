@@ -14,6 +14,7 @@ export declare class UsersSeedService implements OnApplicationBootstrap {
     private readonly logger;
     constructor(usersRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>, configService: ConfigService);
     onApplicationBootstrap(): Promise<void>;
+    private shouldRunBootstrapSeeds;
     private backfillProfilesForExistingUsers;
     private loadLegacyProfileRows;
     private dropLegacyProfileTables;

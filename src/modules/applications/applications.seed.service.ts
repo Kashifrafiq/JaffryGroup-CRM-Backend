@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ApplicationType } from './entities/application-type.entity';
@@ -36,9 +37,15 @@ export class ApplicationsSeedService implements OnApplicationBootstrap {
     @InjectRepository(ApplicationType)
     private readonly applicationTypeRepository: Repository<ApplicationType>,
     private readonly workflowTemplatesSeed: ApplicationWorkflowTemplatesSeedService,
+    private readonly configService: ConfigService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    if (!this.shouldRunBootstrapSeeds()) {
+      this.logger.log('Skipping application seeds on bootstrap (RUN_BOOTSTRAP_SEEDS=false)');
+      return;
+    }
+
     for (const row of APPLICATION_TYPE_SEEDS) {
       const existing = await this.applicationTypeRepository.findOne({
         where: { code: row.code },
@@ -63,5 +70,10 @@ export class ApplicationsSeedService implements OnApplicationBootstrap {
     }
     this.logger.log(`Seeded ${APPLICATION_TYPE_SEEDS.length} application types (upsert by code)`);
     await this.workflowTemplatesSeed.seedTemplates();
+  }
+
+  private shouldRunBootstrapSeeds(): boolean {
+    const raw = this.configService.get<string>('RUN_BOOTSTRAP_SEEDS', 'true');
+    return ['true', '1', 'yes', 'on'].includes(raw.trim().toLowerCase());
   }
 }

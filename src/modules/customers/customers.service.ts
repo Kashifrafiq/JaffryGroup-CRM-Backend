@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -30,6 +31,8 @@ import { UpdateCustomerApplicationDto } from './dto/update-customer-application.
 
 @Injectable()
 export class CustomersService {
+  private readonly logger = new Logger(CustomersService.name);
+
   constructor(
     @InjectRepository(CustomerProfile)
     private readonly customerRepository: Repository<CustomerProfile>,
@@ -48,7 +51,7 @@ export class CustomersService {
   async create(
     dto: CreateCustomerApiDto,
     createdBy: JwtActor,
-  ): Promise<ReturnType<CustomersService['toCustomerDetail']>> {
+  ): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
     this.assertAdminOrAssociate(createdBy);
     if (!dto.applicationTypeId && !dto.applicationTypeCode) {
       throw new BadRequestException('Provide applicationTypeId or applicationTypeCode');
@@ -165,12 +168,12 @@ export class CustomersService {
     });
   }
 
-  async findAll(actor: JwtActor, query: ListCustomersQueryDto): Promise<ReturnType<CustomersService['toCustomerDetail']>[]> {
+  async findAll(actor: JwtActor, query: ListCustomersQueryDto): Promise<ReturnType<CustomersService['toCustomerSummary']>[]> {
     this.assertAdminOrAssociate(actor);
 
     if (actor.role === UserRole.ADMIN) {
       const customers = await this.queryCustomersWithFiltersForList(query, undefined);
-      const details = await Promise.all(customers.map((c) => this.toCustomerDetail(c)));
+      const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c)));
       return this.attachAssignedAssociates(details);
     }
 
@@ -179,27 +182,25 @@ export class CustomersService {
       return [];
     }
     const customers = await this.queryCustomersWithFiltersForList(query, ids);
-    const details = await Promise.all(customers.map((c) => this.toCustomerDetail(c)));
+    const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c)));
     return this.attachAssignedAssociates(details);
   }
 
-  async findOneDetail(customerId: string, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerDetail']>> {
+  async findOneDetail(customerId: string, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
     this.assertAdminOrAssociate(actor);
+    await this.assertCanAccessCustomer(actor, customerId);
     const customer = await this.customerRepository.findOne({
       where: { id: customerId },
       relations: [
         'applications',
         'applications.applicationType',
         'applications.pipelineProgress',
-        'applications.applicationDocuments',
-        'applications.applicationDocuments.requirement',
       ],
     });
     if (!customer) {
       throw new NotFoundException(`Customer #${customerId} not found`);
     }
-    await this.assertCanAccessCustomer(actor, customerId);
-    const detail = await this.toCustomerDetail(customer);
+    const detail = await this.toCustomerSummary(customer);
     const [withAssociates] = await this.attachAssignedAssociates([detail]);
     return withAssociates;
   }
@@ -208,7 +209,7 @@ export class CustomersService {
     customerId: string,
     dto: UpdateCustomerDto,
     actor: JwtActor,
-  ): Promise<ReturnType<CustomersService['toCustomerDetail']>> {
+  ): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
     this.assertAdminOrAssociate(actor);
     await this.assertCanAccessCustomer(actor, customerId);
 
@@ -264,7 +265,7 @@ export class CustomersService {
     customerId: string,
     dto: CreateCustomerApplicationDto,
     actor: JwtActor,
-  ): Promise<ReturnType<CustomersService['toCustomerDetail']>> {
+  ): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
     this.assertAdminOrAssociate(actor);
     await this.assertCanAccessCustomer(actor, customerId);
 
@@ -306,7 +307,7 @@ export class CustomersService {
     applicationId: string,
     dto: UpdateCustomerApplicationDto,
     actor: JwtActor,
-  ): Promise<ReturnType<CustomersService['toCustomerDetail']>> {
+  ): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
     this.assertAdminOrAssociate(actor);
     await this.assertCanAccessCustomer(actor, customerId);
 
@@ -371,58 +372,6 @@ export class CustomersService {
     await this.applicationRepository.remove(app);
   }
 
-  private async queryCustomersWithFilters(
-    query: ListCustomersQueryDto,
-    restrictToCustomerIds: string[] | undefined,
-  ): Promise<CustomerProfile[]> {
-    let candidateIds: string[] | undefined = restrictToCustomerIds;
-
-    if (query.applicationTypeId) {
-      const rows = await this.applicationRepository.find({
-        where: { applicationTypeId: query.applicationTypeId },
-        select: ['customerId'],
-      });
-      const matched = [...new Set(rows.map((r) => r.customerId))];
-      candidateIds = this.intersectIdSets(candidateIds, matched);
-    }
-
-    if (query.applicationTypeCode?.trim()) {
-      const type = await this.applicationTypesService.findActiveByCode(query.applicationTypeCode.trim());
-      if (!type) {
-        return [];
-      }
-      const rows = await this.applicationRepository.find({
-        where: { applicationTypeId: type.id },
-        select: ['customerId'],
-      });
-      const matched = [...new Set(rows.map((r) => r.customerId))];
-      candidateIds = this.intersectIdSets(candidateIds, matched);
-    }
-
-    if (candidateIds !== undefined && candidateIds.length === 0) {
-      return [];
-    }
-
-    const qb = this.customerRepository
-      .createQueryBuilder('c')
-      .leftJoinAndSelect('c.applications', 'app')
-      .leftJoinAndSelect('app.applicationType', 't')
-      .leftJoinAndSelect('app.pipelineProgress', 'prog')
-      .leftJoinAndSelect('app.applicationDocuments', 'docs')
-      .leftJoinAndSelect('docs.requirement', 'docreq')
-      .orderBy('c.createdAt', 'DESC');
-
-    if (candidateIds?.length) {
-      qb.andWhere('c.id IN (:...ids)', { ids: candidateIds });
-    }
-
-    if (query.email?.trim()) {
-      qb.andWhere('LOWER(c.email) LIKE LOWER(:email)', { email: `%${query.email.trim()}%` });
-    }
-
-    return qb.getMany();
-  }
-
   private async queryCustomersWithFiltersForList(
     query: ListCustomersQueryDto,
     restrictToCustomerIds: string[] | undefined,
@@ -459,6 +408,7 @@ export class CustomersService {
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.applications', 'app')
       .leftJoinAndSelect('app.applicationType', 't')
+      .leftJoinAndSelect('app.pipelineProgress', 'prog')
       .orderBy('c.createdAt', 'DESC');
 
     if (candidateIds?.length) {
@@ -565,45 +515,46 @@ export class CustomersService {
   }
 
   private async attachAssignedAssociates(
-    customers: Array<ReturnType<CustomersService['toCustomerDetail']>>,
-  ): Promise<Array<ReturnType<CustomersService['toCustomerDetail']>>> {
+    customers: Array<ReturnType<CustomersService['toCustomerSummary']>>,
+  ): Promise<Array<ReturnType<CustomersService['toCustomerSummary']>>> {
     if (!customers.length) {
       return customers;
     }
 
-    const customerIds = customers.map((c) => c.id);
-    const links = await this.associateCustomerRepository.find({
-      where: { customerId: In(customerIds) },
-    });
-    const uniqueAssociateIds = [...new Set(links.map((l) => l.associateId))];
-    const associates = uniqueAssociateIds.length
-      ? await this.associateProfileRepository.find({
-          where: { id: In(uniqueAssociateIds) },
-        })
-      : [];
-    const associateById = new Map(associates.map((a) => [a.id, a]));
-    const linksByCustomerId = new Map<string, typeof links>();
-    for (const link of links) {
-      const rows = linksByCustomerId.get(link.customerId) ?? [];
-      rows.push(link);
-      linksByCustomerId.set(link.customerId, rows);
-    }
+    try {
+      const customerIds = customers.map((c) => c.id);
+      const links = await this.associateCustomerRepository.find({
+        where: { customerId: In(customerIds) },
+      });
+      const uniqueAssociateIds = [...new Set(links.map((l) => l.associateId))];
+      const associates = uniqueAssociateIds.length
+        ? await this.associateProfileRepository.find({
+            where: { id: In(uniqueAssociateIds) },
+          })
+        : [];
+      const associateById = new Map(associates.map((a) => [a.id, a]));
+      const linksByCustomerId = new Map<string, typeof links>();
+      for (const link of links) {
+        const rows = linksByCustomerId.get(link.customerId) ?? [];
+        rows.push(link);
+        linksByCustomerId.set(link.customerId, rows);
+      }
 
-    return customers.map((customer) => {
-      const assignedAssociates = (linksByCustomerId.get(customer.id) ?? [])
-        .map((link) => associateById.get(link.associateId))
-        .filter((a): a is AssociateProfile => !!a)
-        .map((a) => ({
-          id: a.id,
-          email: a.email ?? '',
-          firstName: a.firstName,
-          lastName: a.lastName,
-          name: `${a.firstName} ${a.lastName}`.trim(),
-          role: a.role,
-          status: a.status,
-        }));
-      return { ...customer, assignedAssociates };
-    });
+      return customers.map((customer) => {
+        const assignedAssociates = (linksByCustomerId.get(customer.id) ?? [])
+          .map((link) => associateById.get(link.associateId))
+          .filter((a): a is AssociateProfile => !!a)
+          .map((a) => ({
+            id: a.id,
+            name: `${a.firstName} ${a.lastName}`.trim(),
+          }));
+        return { ...customer, assignedTo: assignedAssociates };
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(`Could not load assigned associates, returning customers without them: ${message}`);
+      return customers.map((customer) => ({ ...customer, assignedTo: [] }));
+    }
   }
 
   private async resolveApplicationType(input: {
@@ -680,38 +631,29 @@ export class CustomersService {
     };
   }
 
-  private toCustomerDetail(customer: CustomerProfile) {
+  private toCustomerSummary(customer: CustomerProfile) {
     const applications = (customer.applications ?? [])
       .slice()
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((a) => ({
-        id: a.id,
-        status: a.status,
-        pipeline: a.pipeline ?? null,
-        createdAt: a.createdAt,
-        updatedAt: a.updatedAt,
+        applicationId: a.id,
         applicationType: a.applicationType
           ? {
               id: a.applicationType.id,
-              code: a.applicationType.code,
               name: a.applicationType.name,
             }
           : null,
-        workflow: this.customerApplicationWorkflowService.buildWorkflowPayload(a),
+        progress: {
+          completedSteps: (a.pipelineProgress ?? []).filter((p) => !!p.completedAt).length,
+          totalSteps: (a.pipelineProgress ?? []).length,
+        },
       }));
 
     return {
       id: customer.id,
-      email: customer.email ?? '',
-      firstName: customer.firstName,
-      lastName: customer.lastName,
-      name: `${customer.firstName} ${customer.lastName}`.trim(),
-      phoneNumber: customer.phoneNumber,
-      property: customer.property,
-      address: customer.address,
       profilePhoto: customer.profilePhoto,
-      createdAt: customer.createdAt,
-      updatedAt: customer.updatedAt,
+      name: `${customer.firstName} ${customer.lastName}`.trim(),
+      email: customer.email ?? '',
       applications,
     };
   }

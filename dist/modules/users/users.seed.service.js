@@ -72,6 +72,10 @@ let UsersSeedService = UsersSeedService_1 = class UsersSeedService {
         this.configService = configService;
     }
     async onApplicationBootstrap() {
+        if (!this.shouldRunBootstrapSeeds()) {
+            this.logger.log('Skipping user/profile seeds on bootstrap (RUN_BOOTSTRAP_SEEDS=false)');
+            return;
+        }
         await this.consolidateUserTables();
         await this.backfillProfilesForExistingUsers();
         await this.dropLegacyProfileTables();
@@ -108,6 +112,10 @@ let UsersSeedService = UsersSeedService_1 = class UsersSeedService {
             lastName: 'Admin',
         }));
         this.logger.log(`Seeded default admin user: ${adminEmail}`);
+    }
+    shouldRunBootstrapSeeds() {
+        const raw = this.configService.get('RUN_BOOTSTRAP_SEEDS', 'true');
+        return ['true', '1', 'yes', 'on'].includes(raw.trim().toLowerCase());
     }
     async backfillProfilesForExistingUsers() {
         const users = await this.usersRepository.find({
