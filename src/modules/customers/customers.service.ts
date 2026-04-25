@@ -195,12 +195,14 @@ export class CustomersService {
         'applications',
         'applications.applicationType',
         'applications.pipelineProgress',
+        'applications.applicationDocuments',
+        'applications.applicationDocuments.requirement',
       ],
     });
     if (!customer) {
       throw new NotFoundException(`Customer #${customerId} not found`);
     }
-    const detail = await this.toCustomerSummary(customer);
+    const detail = await this.toCustomerSummary(customer, true);
     const [withAssociates] = await this.attachAssignedAssociates([detail]);
     return withAssociates;
   }
@@ -631,7 +633,7 @@ export class CustomersService {
     };
   }
 
-  private toCustomerSummary(customer: CustomerProfile) {
+  private toCustomerSummary(customer: CustomerProfile, includeDocuments = false) {
     const applications = (customer.applications ?? [])
       .slice()
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -647,6 +649,22 @@ export class CustomersService {
           completedSteps: (a.pipelineProgress ?? []).filter((p) => !!p.completedAt).length,
           totalSteps: (a.pipelineProgress ?? []).length,
         },
+        documents: includeDocuments
+          ? (a.applicationDocuments ?? [])
+              .slice()
+              .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+              .map((d) => ({
+                id: d.id,
+                requirementKey: d.requirement.requirementKey,
+                itemLabel: d.requirement.itemLabel,
+                status: d.status,
+                storageKey: d.storageKey ?? null,
+                bucket: d.bucket ?? null,
+                originalFilename: d.originalFilename ?? null,
+                mimeType: d.mimeType ?? null,
+                uploadedAt: d.uploadedAt ?? null,
+              }))
+          : undefined,
       }));
 
     return {

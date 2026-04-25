@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { basename } from 'path';
 
@@ -111,6 +111,23 @@ export class S3StorageService {
     });
     const uploadUrl = await getSignedUrl(this.client, command, { expiresIn: expiresSeconds });
     return { uploadUrl, bucket: this.bucket, key: objectKey, expiresIn: expiresSeconds };
+  }
+
+  async createPresignedGetUrl(
+    objectKey: string,
+    expiresSeconds = 900,
+  ): Promise<{ readUrl: string; bucket: string; key: string; expiresIn: number }> {
+    if (!this.client || !this.bucket) {
+      throw new ServiceUnavailableException(
+        'Object storage uploads are not configured. Set AWS_S3_BUCKET (Space name), AWS_REGION (e.g. nyc3), AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY. For DigitalOcean Spaces also set S3_ENDPOINT=https://<region>.digitaloceanspaces.com',
+      );
+    }
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: objectKey,
+    });
+    const readUrl = await getSignedUrl(this.client, command, { expiresIn: expiresSeconds });
+    return { readUrl, bucket: this.bucket, key: objectKey, expiresIn: expiresSeconds };
   }
 
   /**

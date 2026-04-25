@@ -115,4 +115,20 @@ export class CustomerApplicationWorkflowController {
       this.actor(req),
     );
   }
+
+  @Get(':customerId/applications/:applicationId/documents/:documentId/read-url')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  getDocumentReadUrl(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.workflowService.getDocumentReadUrl(
+      customerId,
+      applicationId,
+      documentId,
+      this.actor(req),
+    );
+  }
 }

@@ -155,6 +155,17 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         await this.applicationDocumentRepository.save(doc);
         return this.getWorkflow(cid, aid, actor);
     }
+    async getDocumentReadUrl(customerId, applicationId, documentId, actor) {
+        const cid = this.tid(customerId);
+        const aid = this.tid(applicationId);
+        const did = this.tid(documentId);
+        await this.assertCanAccess(actor, cid);
+        const doc = await this.loadDocumentRow(cid, aid, did, []);
+        if (!doc.storageKey) {
+            throw new common_1.BadRequestException('Document file is not uploaded yet');
+        }
+        return this.s3StorageService.createPresignedGetUrl(doc.storageKey);
+    }
     buildWorkflowPayload(app) {
         const steps = (app.pipelineProgress ?? [])
             .slice()

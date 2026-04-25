@@ -15,6 +15,12 @@ export declare class S3StorageService {
         key: string;
         expiresIn: number;
     }>;
+    createPresignedGetUrl(objectKey: string, expiresSeconds?: number): Promise<{
+        readUrl: string;
+        bucket: string;
+        key: string;
+        expiresIn: number;
+    }>;
     buildCustomerDocumentsFolder(customerId: string, firstName: string, lastName: string): string;
     buildDocumentObjectKey(params: {
         customerId: string;

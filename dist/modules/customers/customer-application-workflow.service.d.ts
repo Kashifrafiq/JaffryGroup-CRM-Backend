@@ -143,6 +143,12 @@ export declare class CustomerApplicationWorkflowService {
             notes: string | null;
         }[];
     }>;
+    getDocumentReadUrl(customerId: string, applicationId: string, documentId: string, actor: JwtActor): Promise<{
+        readUrl: string;
+        bucket: string;
+        key: string;
+        expiresIn: number;
+    }>;
     buildWorkflowPayload(app: CustomerApplication): {
         applicationId: string;
         applicationType: {

@@ -133,5 +133,11 @@ export declare class CustomerApplicationWorkflowController {
             notes: string | null;
         }[];
     }>;
+    getDocumentReadUrl(customerId: string, applicationId: string, documentId: string, req: RequestWithJwtUser): Promise<{
+        readUrl: string;
+        bucket: string;
+        key: string;
+        expiresIn: number;
+    }>;
 }
 export {};

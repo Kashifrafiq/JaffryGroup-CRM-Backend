@@ -27,6 +27,17 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            documents: {
+                id: string;
+                requirementKey: string;
+                itemLabel: string;
+                status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
+                storageKey: string | null;
+                bucket: string | null;
+                originalFilename: string | null;
+                mimeType: string | null;
+                uploadedAt: Date | null;
+            }[] | undefined;
         }[];
     }>;
     findAll(query: ListCustomersQueryDto, req: RequestWithJwtUser): Promise<{
@@ -44,6 +55,17 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            documents: {
+                id: string;
+                requirementKey: string;
+                itemLabel: string;
+                status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
+                storageKey: string | null;
+                bucket: string | null;
+                originalFilename: string | null;
+                mimeType: string | null;
+                uploadedAt: Date | null;
+            }[] | undefined;
         }[];
     }[]>;
     findOne(customerId: string, req: RequestWithJwtUser): Promise<{
@@ -61,6 +83,17 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            documents: {
+                id: string;
+                requirementKey: string;
+                itemLabel: string;
+                status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
+                storageKey: string | null;
+                bucket: string | null;
+                originalFilename: string | null;
+                mimeType: string | null;
+                uploadedAt: Date | null;
+            }[] | undefined;
         }[];
     }>;
     update(customerId: string, dto: UpdateCustomerDto, req: RequestWithJwtUser): Promise<{
@@ -78,6 +111,17 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            documents: {
+                id: string;
+                requirementKey: string;
+                itemLabel: string;
+                status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
+                storageKey: string | null;
+                bucket: string | null;
+                originalFilename: string | null;
+                mimeType: string | null;
+                uploadedAt: Date | null;
+            }[] | undefined;
         }[];
     }>;
     remove(customerId: string, req: RequestWithJwtUser): Promise<void>;
@@ -96,6 +140,17 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            documents: {
+                id: string;
+                requirementKey: string;
+                itemLabel: string;
+                status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
+                storageKey: string | null;
+                bucket: string | null;
+                originalFilename: string | null;
+                mimeType: string | null;
+                uploadedAt: Date | null;
+            }[] | undefined;
         }[];
     }>;
     updateApplication(customerId: string, applicationId: string, dto: UpdateCustomerApplicationDto, req: RequestWithJwtUser): Promise<{
@@ -113,6 +168,17 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            documents: {
+                id: string;
+                requirementKey: string;
+                itemLabel: string;
+                status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
+                storageKey: string | null;
+                bucket: string | null;
+                originalFilename: string | null;
+                mimeType: string | null;
+                uploadedAt: Date | null;
+            }[] | undefined;
         }[];
     }>;
     removeApplication(customerId: string, applicationId: string, req: RequestWithJwtUser): Promise<void>;

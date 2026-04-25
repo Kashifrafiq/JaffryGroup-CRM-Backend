@@ -98,6 +98,17 @@ let S3StorageService = S3StorageService_1 = class S3StorageService {
         const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, command, { expiresIn: expiresSeconds });
         return { uploadUrl, bucket: this.bucket, key: objectKey, expiresIn: expiresSeconds };
     }
+    async createPresignedGetUrl(objectKey, expiresSeconds = 900) {
+        if (!this.client || !this.bucket) {
+            throw new common_1.ServiceUnavailableException('Object storage uploads are not configured. Set AWS_S3_BUCKET (Space name), AWS_REGION (e.g. nyc3), AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY. For DigitalOcean Spaces also set S3_ENDPOINT=https://<region>.digitaloceanspaces.com');
+        }
+        const command = new client_s3_1.GetObjectCommand({
+            Bucket: this.bucket,
+            Key: objectKey,
+        });
+        const readUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, command, { expiresIn: expiresSeconds });
+        return { readUrl, bucket: this.bucket, key: objectKey, expiresIn: expiresSeconds };
+    }
     buildCustomerDocumentsFolder(customerId, firstName, lastName) {
         const nameSlug = S3StorageService_1.sanitizePathSegment(`${firstName}_${lastName}`.trim(), 120);
         const idShort = customerId.replace(/-/g, '').slice(0, 8);
