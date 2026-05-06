@@ -17,10 +17,16 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const application_type_entity_1 = require("./entities/application-type.entity");
+const application_pipeline_step_template_entity_1 = require("./entities/application-pipeline-step-template.entity");
+const application_document_requirement_entity_1 = require("./entities/application-document-requirement.entity");
 let ApplicationTypesService = class ApplicationTypesService {
     applicationTypeRepository;
-    constructor(applicationTypeRepository) {
+    pipelineTemplateRepository;
+    documentRequirementRepository;
+    constructor(applicationTypeRepository, pipelineTemplateRepository, documentRequirementRepository) {
         this.applicationTypeRepository = applicationTypeRepository;
+        this.pipelineTemplateRepository = pipelineTemplateRepository;
+        this.documentRequirementRepository = documentRequirementRepository;
     }
     findActive() {
         return this.applicationTypeRepository.find({
@@ -50,11 +56,47 @@ let ApplicationTypesService = class ApplicationTypesService {
             .andWhere('LOWER(t.name) = LOWER(:n)', { n: name.trim() })
             .getOne();
     }
+    async getWorkflowTemplate(applicationTypeId) {
+        const normalizedTypeId = applicationTypeId.trim();
+        const type = await this.findActiveById(normalizedTypeId);
+        const [pipelineRows, documentRows] = await Promise.all([
+            this.pipelineTemplateRepository.find({
+                where: { applicationTypeId: normalizedTypeId },
+                order: { stepIndex: 'ASC' },
+            }),
+            this.documentRequirementRepository.find({
+                where: { applicationTypeId: normalizedTypeId },
+                order: { sortOrder: 'ASC' },
+            }),
+        ]);
+        return {
+            applicationType: {
+                id: type.id,
+                code: type.code,
+                name: type.name,
+            },
+            pipelineSteps: pipelineRows.map((row) => ({
+                stepIndex: row.stepIndex,
+                title: row.title,
+            })),
+            documents: documentRows.map((row) => ({
+                id: row.id,
+                requirementKey: row.requirementKey,
+                sectionTitle: row.sectionTitle,
+                itemLabel: row.itemLabel,
+                sortOrder: row.sortOrder,
+            })),
+        };
+    }
 };
 exports.ApplicationTypesService = ApplicationTypesService;
 exports.ApplicationTypesService = ApplicationTypesService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(application_type_entity_1.ApplicationType)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __param(1, (0, typeorm_1.InjectRepository)(application_pipeline_step_template_entity_1.ApplicationPipelineStepTemplate)),
+    __param(2, (0, typeorm_1.InjectRepository)(application_document_requirement_entity_1.ApplicationDocumentRequirement)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository])
 ], ApplicationTypesService);
 //# sourceMappingURL=application-types.service.js.map

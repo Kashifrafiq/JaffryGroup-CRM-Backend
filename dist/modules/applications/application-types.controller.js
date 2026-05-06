@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ApplicationTypesController = void 0;
 const common_1 = require("@nestjs/common");
@@ -29,6 +32,9 @@ let ApplicationTypesController = class ApplicationTypesController {
             sortOrder: t.sortOrder,
         })));
     }
+    getWorkflowTemplate(applicationTypeId) {
+        return this.applicationTypesService.getWorkflowTemplate(applicationTypeId);
+    }
 };
 exports.ApplicationTypesController = ApplicationTypesController;
 __decorate([
@@ -38,6 +44,14 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], ApplicationTypesController.prototype, "findActive", null);
+__decorate([
+    (0, common_1.Get)(':applicationTypeId/workflow-template'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('applicationTypeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ApplicationTypesController.prototype, "getWorkflowTemplate", null);
 exports.ApplicationTypesController = ApplicationTypesController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('application-types'),

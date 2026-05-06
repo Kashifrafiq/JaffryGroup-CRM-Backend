@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -26,5 +26,11 @@ export class ApplicationTypesController {
         sortOrder: t.sortOrder,
       })),
     );
+  }
+
+  @Get(':applicationTypeId/workflow-template')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  getWorkflowTemplate(@Param('applicationTypeId') applicationTypeId: string) {
+    return this.applicationTypesService.getWorkflowTemplate(applicationTypeId);
   }
 }
