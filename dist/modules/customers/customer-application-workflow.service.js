@@ -110,6 +110,13 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             expiresIn: signed.expiresIn,
         };
     }
+    async presignDocumentUploadForCustomerUser(applicationId, documentId, dto, actor) {
+        if (actor.role !== user_role_enum_1.UserRole.CUSTOMER) {
+            throw new common_1.ForbiddenException('Only customer can use this endpoint');
+        }
+        const customerId = await this.customerIdForUser(actor.id);
+        return this.presignDocumentUpload(customerId, applicationId, documentId, dto, actor);
+    }
     async completeDocumentUpload(customerId, applicationId, documentId, dto, actor) {
         const cid = this.tid(customerId);
         const aid = this.tid(applicationId);
@@ -136,6 +143,13 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         doc.uploadedByUserId = actor.id;
         await this.applicationDocumentRepository.save(doc);
         return this.getWorkflow(cid, aid, actor);
+    }
+    async completeDocumentUploadForCustomerUser(applicationId, documentId, dto, actor) {
+        if (actor.role !== user_role_enum_1.UserRole.CUSTOMER) {
+            throw new common_1.ForbiddenException('Only customer can use this endpoint');
+        }
+        const customerId = await this.customerIdForUser(actor.id);
+        return this.completeDocumentUpload(customerId, applicationId, documentId, dto, actor);
     }
     async patchDocument(customerId, applicationId, documentId, dto, actor) {
         const cid = this.tid(customerId);
@@ -236,7 +250,17 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             return;
         }
         if (actor.role !== user_role_enum_1.UserRole.ASSOCIATE) {
-            throw new common_1.ForbiddenException('Insufficient permissions');
+            if (actor.role !== user_role_enum_1.UserRole.CUSTOMER) {
+                throw new common_1.ForbiddenException('Insufficient permissions');
+            }
+            const customer = await this.customerProfileRepository.findOne({
+                where: { id: customerId, userId: actor.id },
+                select: ['id'],
+            });
+            if (!customer) {
+                throw new common_1.ForbiddenException('You do not have access to this customer');
+            }
+            return;
         }
         const associateProfile = await this.associateProfileRepository.findOne({
             where: { userId: actor.id },
@@ -250,6 +274,16 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         if (!link) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
+    }
+    async customerIdForUser(userId) {
+        const customer = await this.customerProfileRepository.findOne({
+            where: { userId },
+            select: ['id'],
+        });
+        if (!customer) {
+            throw new common_1.ForbiddenException('Customer profile not found for current user');
+        }
+        return customer.id;
     }
 };
 exports.CustomerApplicationWorkflowService = CustomerApplicationWorkflowService;

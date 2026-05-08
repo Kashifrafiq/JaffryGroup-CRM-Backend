@@ -62,6 +62,22 @@ export class CustomerApplicationWorkflowController {
     );
   }
 
+  @Post('me/applications/:applicationId/documents/:documentId/presign')
+  @Roles(UserRole.CUSTOMER)
+  presignUploadForMe(
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+    @Body() dto: PresignDocumentUploadDto,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.workflowService.presignDocumentUploadForCustomerUser(
+      applicationId,
+      documentId,
+      dto,
+      this.actor(req),
+    );
+  }
+
   @Post(':customerId/applications/:applicationId/documents/:documentId/presign')
   @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
   presignUpload(
@@ -73,6 +89,22 @@ export class CustomerApplicationWorkflowController {
   ) {
     return this.workflowService.presignDocumentUpload(
       customerId,
+      applicationId,
+      documentId,
+      dto,
+      this.actor(req),
+    );
+  }
+
+  @Post('me/applications/:applicationId/documents/:documentId/complete')
+  @Roles(UserRole.CUSTOMER)
+  completeUploadForMe(
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+    @Body() dto: CompleteDocumentUploadDto,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.workflowService.completeDocumentUploadForCustomerUser(
       applicationId,
       documentId,
       dto,

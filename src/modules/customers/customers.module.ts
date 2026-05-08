@@ -2,21 +2,31 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ApplicationsModule } from '../applications/applications.module';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
+import { User } from '../users/entities/user.entity';
 import { AssociateCustomer } from '../users/entities/associate-customer.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { CustomerApplication } from './entities/customer-application.entity';
+import { CustomerInvite } from './entities/customer-invite.entity';
 import { CustomersController } from './customers.controller';
 import { CustomerApplicationWorkflowController } from './customer-application-workflow.controller';
 import { CustomersService } from './customers.service';
 import { CustomerApplicationWorkflowService } from './customer-application-workflow.service';
+import { CustomerInviteMailService } from './customer-invite-mail.service';
 
 @Module({
   imports: [
     ApplicationsModule,
-    TypeOrmModule.forFeature([CustomerProfile, CustomerApplication, AssociateCustomer, AssociateProfile]),
+    TypeOrmModule.forFeature([
+      CustomerProfile,
+      CustomerApplication,
+      AssociateCustomer,
+      AssociateProfile,
+      CustomerInvite,
+      User,
+    ]),
   ],
   controllers: [CustomerApplicationWorkflowController, CustomersController],
-  providers: [CustomersService, CustomerApplicationWorkflowService],
+  providers: [CustomersService, CustomerApplicationWorkflowService, CustomerInviteMailService],
   exports: [CustomersService],
 })
 export class CustomersModule {}

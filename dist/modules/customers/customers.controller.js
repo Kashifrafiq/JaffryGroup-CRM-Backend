@@ -20,6 +20,7 @@ const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const customers_service_1 = require("./customers.service");
 const create_customer_api_dto_1 = require("./dto/create-customer-api.dto");
+const invite_customer_dto_1 = require("./dto/invite-customer.dto");
 const list_customers_query_dto_1 = require("./dto/list-customers-query.dto");
 const update_customer_dto_1 = require("./dto/update-customer.dto");
 const create_customer_application_dto_1 = require("./dto/create-customer-application.dto");
@@ -35,8 +36,20 @@ let CustomersController = class CustomersController {
     create(dto, req) {
         return this.customersService.create(dto, this.actor(req));
     }
+    invite(dto, req) {
+        return this.customersService.inviteCustomer(dto, this.actor(req));
+    }
     findAll(query, req) {
         return this.customersService.findAll(this.actor(req), query);
+    }
+    me(req) {
+        return this.customersService.findMyInfo(req.user.id);
+    }
+    myPipeline(req) {
+        return this.customersService.findMyPipelineProgress(req.user.id);
+    }
+    myDocuments(req) {
+        return this.customersService.findMyDocuments(req.user.id);
     }
     findOne(customerId, req) {
         return this.customersService.findOneDetail(customerId, this.actor(req));
@@ -68,6 +81,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CustomersController.prototype, "create", null);
 __decorate([
+    (0, common_1.Post)('invite'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [invite_customer_dto_1.InviteCustomerDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "invite", null);
+__decorate([
     (0, common_1.Get)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
     __param(0, (0, common_1.Query)()),
@@ -76,6 +98,30 @@ __decorate([
     __metadata("design:paramtypes", [list_customers_query_dto_1.ListCustomersQueryDto, Object]),
     __metadata("design:returntype", void 0)
 ], CustomersController.prototype, "findAll", null);
+__decorate([
+    (0, common_1.Get)('me'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "me", null);
+__decorate([
+    (0, common_1.Get)('me/pipeline'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "myPipeline", null);
+__decorate([
+    (0, common_1.Get)('me/documents'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "myDocuments", null);
 __decorate([
     (0, common_1.Get)(':customerId'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),

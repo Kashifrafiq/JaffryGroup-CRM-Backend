@@ -16,9 +16,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomersService = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
+const config_1 = require("@nestjs/config");
+const crypto_1 = require("crypto");
 const typeorm_2 = require("typeorm");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
+const user_entity_1 = require("../users/entities/user.entity");
 const associate_customer_entity_1 = require("../users/entities/associate-customer.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const customer_application_entity_1 = require("./entities/customer-application.entity");
@@ -28,24 +31,34 @@ const application_workflow_service_1 = require("../applications/application-work
 const customer_application_pipeline_progress_entity_1 = require("../applications/entities/customer-application-pipeline-progress.entity");
 const customer_application_document_entity_1 = require("../applications/entities/customer-application-document.entity");
 const customer_application_workflow_service_1 = require("./customer-application-workflow.service");
+const customer_invite_entity_1 = require("./entities/customer-invite.entity");
+const customer_invite_mail_service_1 = require("./customer-invite-mail.service");
 let CustomersService = CustomersService_1 = class CustomersService {
     customerRepository;
     applicationRepository;
     associateCustomerRepository;
     associateProfileRepository;
+    customerInviteRepository;
+    userRepository;
     applicationTypesService;
     applicationWorkflowService;
     customerApplicationWorkflowService;
+    customerInviteMailService;
+    configService;
     dataSource;
     logger = new common_1.Logger(CustomersService_1.name);
-    constructor(customerRepository, applicationRepository, associateCustomerRepository, associateProfileRepository, applicationTypesService, applicationWorkflowService, customerApplicationWorkflowService, dataSource) {
+    constructor(customerRepository, applicationRepository, associateCustomerRepository, associateProfileRepository, customerInviteRepository, userRepository, applicationTypesService, applicationWorkflowService, customerApplicationWorkflowService, customerInviteMailService, configService, dataSource) {
         this.customerRepository = customerRepository;
         this.applicationRepository = applicationRepository;
         this.associateCustomerRepository = associateCustomerRepository;
         this.associateProfileRepository = associateProfileRepository;
+        this.customerInviteRepository = customerInviteRepository;
+        this.userRepository = userRepository;
         this.applicationTypesService = applicationTypesService;
         this.applicationWorkflowService = applicationWorkflowService;
         this.customerApplicationWorkflowService = customerApplicationWorkflowService;
+        this.customerInviteMailService = customerInviteMailService;
+        this.configService = configService;
         this.dataSource = dataSource;
     }
     async create(dto, createdBy) {
@@ -97,6 +110,50 @@ let CustomersService = CustomersService_1 = class CustomersService {
         });
         return this.findOneDetail(customer.id, createdBy);
     }
+    async inviteCustomer(dto, actor) {
+        this.assertAdminOrAssociate(actor);
+        const normalizedEmail = dto.email.trim().toLowerCase();
+        await this.assertCustomerEmailAvailableForInvite(normalizedEmail);
+        const frontendBase = this.configService
+            .get('FRONTEND_CUSTOMER_INVITE_URL_BASE')
+            ?.trim();
+        if (!frontendBase) {
+            throw new common_1.BadRequestException('FRONTEND_CUSTOMER_INVITE_URL_BASE is required');
+        }
+        const token = (0, crypto_1.randomBytes)(32).toString('hex');
+        const tokenHash = this.hashToken(token);
+        const expiresAt = this.getCustomerInviteExpiryDate();
+        const inviteLink = `${frontendBase}${frontendBase.includes('?') ? '&' : '?'}token=${token}`;
+        const invite = this.customerInviteRepository.create({
+            email: normalizedEmail,
+            firstName: dto.firstName.trim(),
+            lastName: dto.lastName.trim(),
+            phoneNumber: null,
+            property: null,
+            address: null,
+            profilePhoto: null,
+            tokenHash,
+            expiresAt,
+            acceptedAt: null,
+            createdByUserId: actor.id,
+        });
+        await this.customerInviteRepository.save(invite);
+        try {
+            await this.customerInviteMailService.sendCustomerInvite({
+                to: normalizedEmail,
+                inviteLink,
+            });
+        }
+        catch (error) {
+            await this.customerInviteRepository.delete(invite.id);
+            throw error;
+        }
+        return {
+            inviteSent: true,
+            email: normalizedEmail,
+            expiresAt,
+        };
+    }
     async createFromLegacyDto(dto, createdBy) {
         this.assertAdminOrAssociate(createdBy);
         const effectiveRole = dto.role ?? user_role_enum_1.UserRole.CUSTOMER;
@@ -147,6 +204,115 @@ let CustomersService = CustomersService_1 = class CustomersService {
         const customers = await this.queryCustomersWithFiltersForList(query, ids);
         const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c)));
         return this.attachAssignedAssociates(details);
+    }
+    async findMyInfo(userId) {
+        const customer = await this.customerRepository.findOne({
+            where: { userId },
+            relations: ['applications', 'applications.applicationType'],
+        });
+        if (!customer) {
+            throw new common_1.NotFoundException('Customer profile not found for current user');
+        }
+        const latestApplication = (customer.applications ?? [])
+            .slice()
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+        return {
+            id: customer.id,
+            name: `${customer.firstName} ${customer.lastName}`.trim(),
+            email: customer.email ?? '',
+            applicationType: latestApplication?.applicationType?.name ?? customer.applicationType ?? null,
+        };
+    }
+    async findMyPipelineProgress(userId) {
+        const customer = await this.customerRepository.findOne({
+            where: { userId },
+            relations: [
+                'applications',
+                'applications.applicationType',
+                'applications.pipelineProgress',
+            ],
+        });
+        if (!customer) {
+            throw new common_1.NotFoundException('Customer profile not found for current user');
+        }
+        const applications = (customer.applications ?? [])
+            .slice()
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .map((app) => ({
+            applicationId: app.id,
+            applicationType: app.applicationType
+                ? {
+                    id: app.applicationType.id,
+                    name: app.applicationType.name,
+                }
+                : null,
+            pipelineSteps: (app.pipelineProgress ?? [])
+                .slice()
+                .sort((a, b) => a.stepIndex - b.stepIndex)
+                .map((step) => ({
+                stepIndex: step.stepIndex,
+                title: step.title,
+                completed: !!step.completedAt,
+                completedAt: step.completedAt ?? null,
+            })),
+        }));
+        return {
+            customerId: customer.id,
+            applications,
+        };
+    }
+    async findMyDocuments(userId) {
+        const customer = await this.customerRepository.findOne({
+            where: { userId },
+            relations: [
+                'applications',
+                'applications.applicationType',
+                'applications.applicationDocuments',
+                'applications.applicationDocuments.requirement',
+            ],
+        });
+        if (!customer) {
+            throw new common_1.NotFoundException('Customer profile not found for current user');
+        }
+        const applications = (customer.applications ?? [])
+            .slice()
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .map((app) => {
+            const documents = (app.applicationDocuments ?? [])
+                .slice()
+                .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+                .map((doc) => ({
+                id: doc.id,
+                requirementKey: doc.requirement.requirementKey,
+                sectionTitle: doc.requirement.sectionTitle,
+                itemLabel: doc.requirement.itemLabel,
+                status: doc.status,
+                uploaded: !!doc.uploadedAt,
+                uploadedAt: doc.uploadedAt ?? null,
+            }));
+            const uploaded = documents.filter((d) => d.uploaded).length;
+            const total = documents.length;
+            const remaining = total - uploaded;
+            return {
+                applicationId: app.id,
+                applicationType: app.applicationType
+                    ? {
+                        id: app.applicationType.id,
+                        name: app.applicationType.name,
+                    }
+                    : null,
+                summary: {
+                    uploaded,
+                    remaining,
+                    total,
+                },
+                documents,
+            };
+        });
+        return {
+            customerId: customer.id,
+            applications,
+        };
     }
     async findOneDetail(customerId, actor) {
         this.assertAdminOrAssociate(actor);
@@ -376,6 +542,37 @@ let CustomersService = CustomersService_1 = class CustomersService {
             throw new common_1.ConflictException('Email already in use');
         }
     }
+    async assertCustomerEmailAvailableForInvite(normalizedEmail) {
+        const [existingCustomer, existingUser, existingInvite] = await Promise.all([
+            this.customerRepository.findOne({ where: { email: normalizedEmail } }),
+            this.userRepository.findOne({ where: { email: normalizedEmail } }),
+            this.customerInviteRepository.findOne({
+                where: {
+                    email: normalizedEmail,
+                    acceptedAt: (0, typeorm_2.IsNull)(),
+                    expiresAt: (0, typeorm_2.MoreThan)(new Date()),
+                },
+            }),
+        ]);
+        if (!existingCustomer) {
+            throw new common_1.NotFoundException('Customer does not exist. Create customer first before inviting.');
+        }
+        if (existingCustomer.userId || existingUser) {
+            throw new common_1.ConflictException('Email already in use');
+        }
+        if (existingInvite) {
+            throw new common_1.ConflictException('An active invite already exists for this email');
+        }
+    }
+    hashToken(token) {
+        return (0, crypto_1.createHash)('sha256').update(token).digest('hex');
+    }
+    getCustomerInviteExpiryDate() {
+        const hoursRaw = this.configService.get('CUSTOMER_INVITE_EXPIRES_HOURS', '48');
+        const hours = Number(hoursRaw);
+        const safeHours = Number.isFinite(hours) && hours > 0 ? hours : 48;
+        return new Date(Date.now() + safeHours * 60 * 60 * 1000);
+    }
     async resolveAssociateAssignmentOnCreate(dto, actor) {
         const requestedAssociateId = dto.associateId?.trim();
         if (actor.role === user_role_enum_1.UserRole.ADMIN) {
@@ -553,13 +750,19 @@ exports.CustomersService = CustomersService = CustomersService_1 = __decorate([
     __param(1, (0, typeorm_1.InjectRepository)(customer_application_entity_1.CustomerApplication)),
     __param(2, (0, typeorm_1.InjectRepository)(associate_customer_entity_1.AssociateCustomer)),
     __param(3, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
+    __param(4, (0, typeorm_1.InjectRepository)(customer_invite_entity_1.CustomerInvite)),
+    __param(5, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         application_types_service_1.ApplicationTypesService,
         application_workflow_service_1.ApplicationWorkflowService,
         customer_application_workflow_service_1.CustomerApplicationWorkflowService,
+        customer_invite_mail_service_1.CustomerInviteMailService,
+        config_1.ConfigService,
         typeorm_2.DataSource])
 ], CustomersService);
 //# sourceMappingURL=customers.service.js.map

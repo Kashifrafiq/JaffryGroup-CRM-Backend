@@ -37,8 +37,14 @@ let CustomerApplicationWorkflowController = class CustomerApplicationWorkflowCon
     patchPipelineStep(customerId, applicationId, stepIndex, dto, req) {
         return this.workflowService.patchPipelineStep(customerId, applicationId, stepIndex, dto.completed, this.actor(req));
     }
+    presignUploadForMe(applicationId, documentId, dto, req) {
+        return this.workflowService.presignDocumentUploadForCustomerUser(applicationId, documentId, dto, this.actor(req));
+    }
     presignUpload(customerId, applicationId, documentId, dto, req) {
         return this.workflowService.presignDocumentUpload(customerId, applicationId, documentId, dto, this.actor(req));
+    }
+    completeUploadForMe(applicationId, documentId, dto, req) {
+        return this.workflowService.completeDocumentUploadForCustomerUser(applicationId, documentId, dto, this.actor(req));
     }
     completeUpload(customerId, applicationId, documentId, dto, req) {
         return this.workflowService.completeDocumentUpload(customerId, applicationId, documentId, dto, this.actor(req));
@@ -74,6 +80,17 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CustomerApplicationWorkflowController.prototype, "patchPipelineStep", null);
 __decorate([
+    (0, common_1.Post)('me/applications/:applicationId/documents/:documentId/presign'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),
+    __param(0, (0, common_1.Param)('applicationId')),
+    __param(1, (0, common_1.Param)('documentId')),
+    __param(2, (0, common_1.Body)()),
+    __param(3, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, presign_document_upload_dto_1.PresignDocumentUploadDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomerApplicationWorkflowController.prototype, "presignUploadForMe", null);
+__decorate([
     (0, common_1.Post)(':customerId/applications/:applicationId/documents/:documentId/presign'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
     __param(0, (0, common_1.Param)('customerId')),
@@ -85,6 +102,17 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, presign_document_upload_dto_1.PresignDocumentUploadDto, Object]),
     __metadata("design:returntype", void 0)
 ], CustomerApplicationWorkflowController.prototype, "presignUpload", null);
+__decorate([
+    (0, common_1.Post)('me/applications/:applicationId/documents/:documentId/complete'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),
+    __param(0, (0, common_1.Param)('applicationId')),
+    __param(1, (0, common_1.Param)('documentId')),
+    __param(2, (0, common_1.Body)()),
+    __param(3, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, complete_document_upload_dto_1.CompleteDocumentUploadDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomerApplicationWorkflowController.prototype, "completeUploadForMe", null);
 __decorate([
     (0, common_1.Post)(':customerId/applications/:applicationId/documents/:documentId/complete'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),

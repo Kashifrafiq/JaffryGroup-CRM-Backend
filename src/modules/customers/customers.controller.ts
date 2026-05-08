@@ -18,6 +18,7 @@ import { User } from '../users/entities/user.entity';
 import { CustomersService } from './customers.service';
 import { JwtActor } from './jwt-actor.type';
 import { CreateCustomerApiDto } from './dto/create-customer-api.dto';
+import { InviteCustomerDto } from './dto/invite-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerApplicationDto } from './dto/create-customer-application.dto';
@@ -42,10 +43,34 @@ export class CustomersController {
     return this.customersService.create(dto, this.actor(req));
   }
 
+  @Post('invite')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  invite(@Body() dto: InviteCustomerDto, @Request() req: RequestWithJwtUser) {
+    return this.customersService.inviteCustomer(dto, this.actor(req));
+  }
+
   @Get()
   @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
   findAll(@Query() query: ListCustomersQueryDto, @Request() req: RequestWithJwtUser) {
     return this.customersService.findAll(this.actor(req), query);
+  }
+
+  @Get('me')
+  @Roles(UserRole.CUSTOMER)
+  me(@Request() req: RequestWithJwtUser) {
+    return this.customersService.findMyInfo(req.user.id);
+  }
+
+  @Get('me/pipeline')
+  @Roles(UserRole.CUSTOMER)
+  myPipeline(@Request() req: RequestWithJwtUser) {
+    return this.customersService.findMyPipelineProgress(req.user.id);
+  }
+
+  @Get('me/documents')
+  @Roles(UserRole.CUSTOMER)
+  myDocuments(@Request() req: RequestWithJwtUser) {
+    return this.customersService.findMyDocuments(req.user.id);
   }
 
   @Get(':customerId')

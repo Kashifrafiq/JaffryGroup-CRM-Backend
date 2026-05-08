@@ -69,11 +69,46 @@ export declare class CustomerApplicationWorkflowController {
             notes: string | null;
         }[];
     }>;
+    presignUploadForMe(applicationId: string, documentId: string, dto: PresignDocumentUploadDto, req: RequestWithJwtUser): Promise<{
+        uploadUrl: string;
+        bucket: string;
+        key: string;
+        expiresIn: number;
+    }>;
     presignUpload(customerId: string, applicationId: string, documentId: string, dto: PresignDocumentUploadDto, req: RequestWithJwtUser): Promise<{
         uploadUrl: string;
         bucket: string;
         key: string;
         expiresIn: number;
+    }>;
+    completeUploadForMe(applicationId: string, documentId: string, dto: CompleteDocumentUploadDto, req: RequestWithJwtUser): Promise<{
+        applicationId: string;
+        applicationType: {
+            id: string;
+            code: string;
+            name: string;
+        };
+        pipelineSteps: {
+            stepIndex: number;
+            title: string;
+            completedAt: Date | null;
+        }[];
+        documents: {
+            id: string;
+            status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
+            requirementKey: string;
+            sectionTitle: string;
+            itemLabel: string;
+            sortOrder: number;
+            storageKey: string | null;
+            bucket: string | null;
+            originalFilename: string | null;
+            mimeType: string | null;
+            sizeBytes: string | null;
+            uploadedAt: Date | null;
+            uploadedByUserId: string | null;
+            notes: string | null;
+        }[];
     }>;
     completeUpload(customerId: string, applicationId: string, documentId: string, dto: CompleteDocumentUploadDto, req: RequestWithJwtUser): Promise<{
         applicationId: string;

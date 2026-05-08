@@ -123,6 +123,19 @@ export class CustomerApplicationWorkflowService {
     };
   }
 
+  async presignDocumentUploadForCustomerUser(
+    applicationId: string,
+    documentId: string,
+    dto: PresignDocumentUploadDto,
+    actor: JwtActor,
+  ) {
+    if (actor.role !== UserRole.CUSTOMER) {
+      throw new ForbiddenException('Only customer can use this endpoint');
+    }
+    const customerId = await this.customerIdForUser(actor.id);
+    return this.presignDocumentUpload(customerId, applicationId, documentId, dto, actor);
+  }
+
   async completeDocumentUpload(
     customerId: string,
     applicationId: string,
@@ -160,6 +173,19 @@ export class CustomerApplicationWorkflowService {
     doc.uploadedByUserId = actor.id;
     await this.applicationDocumentRepository.save(doc);
     return this.getWorkflow(cid, aid, actor);
+  }
+
+  async completeDocumentUploadForCustomerUser(
+    applicationId: string,
+    documentId: string,
+    dto: CompleteDocumentUploadDto,
+    actor: JwtActor,
+  ) {
+    if (actor.role !== UserRole.CUSTOMER) {
+      throw new ForbiddenException('Only customer can use this endpoint');
+    }
+    const customerId = await this.customerIdForUser(actor.id);
+    return this.completeDocumentUpload(customerId, applicationId, documentId, dto, actor);
   }
 
   async patchDocument(
@@ -286,7 +312,17 @@ export class CustomerApplicationWorkflowService {
       return;
     }
     if (actor.role !== UserRole.ASSOCIATE) {
-      throw new ForbiddenException('Insufficient permissions');
+      if (actor.role !== UserRole.CUSTOMER) {
+        throw new ForbiddenException('Insufficient permissions');
+      }
+      const customer = await this.customerProfileRepository.findOne({
+        where: { id: customerId, userId: actor.id },
+        select: ['id'],
+      });
+      if (!customer) {
+        throw new ForbiddenException('You do not have access to this customer');
+      }
+      return;
     }
     const associateProfile = await this.associateProfileRepository.findOne({
       where: { userId: actor.id },
@@ -300,5 +336,16 @@ export class CustomerApplicationWorkflowService {
     if (!link) {
       throw new ForbiddenException('You do not have access to this customer');
     }
+  }
+
+  private async customerIdForUser(userId: string): Promise<string> {
+    const customer = await this.customerProfileRepository.findOne({
+      where: { userId },
+      select: ['id'],
+    });
+    if (!customer) {
+      throw new ForbiddenException('Customer profile not found for current user');
+    }
+    return customer.id;
   }
 }

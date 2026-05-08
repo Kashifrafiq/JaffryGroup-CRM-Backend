@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const auth_service_1 = require("./auth.service");
 const admin_login_dto_1 = require("./dto/admin-login.dto");
 const accept_associate_invite_dto_1 = require("./dto/accept-associate-invite.dto");
+const accept_customer_invite_dto_1 = require("./dto/accept-customer-invite.dto");
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
@@ -27,6 +28,7 @@ let AuthController = class AuthController {
             ok: true,
             login: 'POST /auth/admin-login',
             associateLogin: 'POST /auth/associate-login',
+            customerLogin: 'POST /auth/customer-login',
             alt: 'POST /api/auth/admin-login',
         };
     }
@@ -62,11 +64,33 @@ let AuthController = class AuthController {
     associateLogin(associateLoginDto) {
         return this.authService.associateLogin(associateLoginDto);
     }
+    customerLoginHelp() {
+        return {
+            ok: false,
+            reason: 'Login must be POST with JSON body (not a browser tab GET).',
+            method: 'POST',
+            path: '/auth/customer-login',
+            bodyExample: {
+                email: 'customer@example.com',
+                password: 'your-password',
+            },
+            headers: { 'Content-Type': 'application/json' },
+        };
+    }
+    customerLogin(customerLoginDto) {
+        return this.authService.customerLogin(customerLoginDto);
+    }
     validateAssociateInvite(token) {
         return this.authService.validateAssociateInviteToken(token);
     }
     acceptAssociateInvite(dto) {
         return this.authService.acceptAssociateInvite(dto);
+    }
+    validateCustomerInvite(token) {
+        return this.authService.validateCustomerInviteToken(token);
+    }
+    acceptCustomerInvite(dto) {
+        return this.authService.acceptCustomerInvite(dto);
     }
 };
 exports.AuthController = AuthController;
@@ -103,6 +127,19 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "associateLogin", null);
 __decorate([
+    (0, common_1.Get)('customer-login'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "customerLoginHelp", null);
+__decorate([
+    (0, common_1.Post)('customer-login'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [admin_login_dto_1.AdminLoginDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "customerLogin", null);
+__decorate([
     (0, common_1.Get)('associate-invites/:token'),
     __param(0, (0, common_1.Param)('token')),
     __metadata("design:type", Function),
@@ -116,6 +153,20 @@ __decorate([
     __metadata("design:paramtypes", [accept_associate_invite_dto_1.AcceptAssociateInviteDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "acceptAssociateInvite", null);
+__decorate([
+    (0, common_1.Get)('customer-invites/:token'),
+    __param(0, (0, common_1.Param)('token')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "validateCustomerInvite", null);
+__decorate([
+    (0, common_1.Post)('customer-invites/accept'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [accept_customer_invite_dto_1.AcceptCustomerInviteDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "acceptCustomerInvite", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

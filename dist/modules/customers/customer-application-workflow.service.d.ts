@@ -85,7 +85,42 @@ export declare class CustomerApplicationWorkflowService {
         key: string;
         expiresIn: number;
     }>;
+    presignDocumentUploadForCustomerUser(applicationId: string, documentId: string, dto: PresignDocumentUploadDto, actor: JwtActor): Promise<{
+        uploadUrl: string;
+        bucket: string;
+        key: string;
+        expiresIn: number;
+    }>;
     completeDocumentUpload(customerId: string, applicationId: string, documentId: string, dto: CompleteDocumentUploadDto, actor: JwtActor): Promise<{
+        applicationId: string;
+        applicationType: {
+            id: string;
+            code: string;
+            name: string;
+        };
+        pipelineSteps: {
+            stepIndex: number;
+            title: string;
+            completedAt: Date | null;
+        }[];
+        documents: {
+            id: string;
+            status: CustomerApplicationDocumentStatus;
+            requirementKey: string;
+            sectionTitle: string;
+            itemLabel: string;
+            sortOrder: number;
+            storageKey: string | null;
+            bucket: string | null;
+            originalFilename: string | null;
+            mimeType: string | null;
+            sizeBytes: string | null;
+            uploadedAt: Date | null;
+            uploadedByUserId: string | null;
+            notes: string | null;
+        }[];
+    }>;
+    completeDocumentUploadForCustomerUser(applicationId: string, documentId: string, dto: CompleteDocumentUploadDto, actor: JwtActor): Promise<{
         applicationId: string;
         applicationType: {
             id: string;
@@ -181,4 +216,5 @@ export declare class CustomerApplicationWorkflowService {
     private loadApplication;
     private loadDocumentRow;
     private assertCanAccess;
+    private customerIdForUser;
 }

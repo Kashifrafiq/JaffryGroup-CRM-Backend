@@ -7,7 +7,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { createHash, randomBytes } from 'crypto';
+import { DataSource, In, IsNull, MoreThan, Repository } from 'typeorm';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { UserRole } from '../users/entities/user-role.enum';
 import { User } from '../users/entities/user.entity';
@@ -28,6 +30,9 @@ import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerApplicationDto } from './dto/create-customer-application.dto';
 import { UpdateCustomerApplicationDto } from './dto/update-customer-application.dto';
+import { InviteCustomerDto } from './dto/invite-customer.dto';
+import { CustomerInvite } from './entities/customer-invite.entity';
+import { CustomerInviteMailService } from './customer-invite-mail.service';
 
 @Injectable()
 export class CustomersService {
@@ -42,9 +47,15 @@ export class CustomersService {
     private readonly associateCustomerRepository: Repository<AssociateCustomer>,
     @InjectRepository(AssociateProfile)
     private readonly associateProfileRepository: Repository<AssociateProfile>,
+    @InjectRepository(CustomerInvite)
+    private readonly customerInviteRepository: Repository<CustomerInvite>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly applicationTypesService: ApplicationTypesService,
     private readonly applicationWorkflowService: ApplicationWorkflowService,
     private readonly customerApplicationWorkflowService: CustomerApplicationWorkflowService,
+    private readonly customerInviteMailService: CustomerInviteMailService,
+    private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -111,6 +122,58 @@ export class CustomersService {
     });
 
     return this.findOneDetail(customer.id, createdBy);
+  }
+
+  async inviteCustomer(
+    dto: InviteCustomerDto,
+    actor: JwtActor,
+  ): Promise<{ inviteSent: true; email: string; expiresAt: Date }> {
+    this.assertAdminOrAssociate(actor);
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    await this.assertCustomerEmailAvailableForInvite(normalizedEmail);
+
+    const frontendBase = this.configService
+      .get<string>('FRONTEND_CUSTOMER_INVITE_URL_BASE')
+      ?.trim();
+    if (!frontendBase) {
+      throw new BadRequestException('FRONTEND_CUSTOMER_INVITE_URL_BASE is required');
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(token);
+    const expiresAt = this.getCustomerInviteExpiryDate();
+    const inviteLink = `${frontendBase}${frontendBase.includes('?') ? '&' : '?'}token=${token}`;
+
+    const invite = this.customerInviteRepository.create({
+      email: normalizedEmail,
+      firstName: dto.firstName.trim(),
+      lastName: dto.lastName.trim(),
+      phoneNumber: null,
+      property: null,
+      address: null,
+      profilePhoto: null,
+      tokenHash,
+      expiresAt,
+      acceptedAt: null,
+      createdByUserId: actor.id,
+    });
+    await this.customerInviteRepository.save(invite);
+
+    try {
+      await this.customerInviteMailService.sendCustomerInvite({
+        to: normalizedEmail,
+        inviteLink,
+      });
+    } catch (error) {
+      await this.customerInviteRepository.delete(invite.id);
+      throw error;
+    }
+
+    return {
+      inviteSent: true,
+      email: normalizedEmail,
+      expiresAt,
+    };
   }
 
   /** Used by `POST /users/customers` — resolves type from id, code, or legacy label string. */
@@ -184,6 +247,163 @@ export class CustomersService {
     const customers = await this.queryCustomersWithFiltersForList(query, ids);
     const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c)));
     return this.attachAssignedAssociates(details);
+  }
+
+  async findMyInfo(userId: string): Promise<{
+    id: string;
+    name: string;
+    email: string;
+    applicationType: string | null;
+  }> {
+    const customer = await this.customerRepository.findOne({
+      where: { userId },
+      relations: ['applications', 'applications.applicationType'],
+    });
+    if (!customer) {
+      throw new NotFoundException('Customer profile not found for current user');
+    }
+
+    const latestApplication = (customer.applications ?? [])
+      .slice()
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+
+    return {
+      id: customer.id,
+      name: `${customer.firstName} ${customer.lastName}`.trim(),
+      email: customer.email ?? '',
+      applicationType: latestApplication?.applicationType?.name ?? customer.applicationType ?? null,
+    };
+  }
+
+  async findMyPipelineProgress(userId: string): Promise<{
+    customerId: string;
+    applications: Array<{
+      applicationId: string;
+      applicationType: { id: string; name: string } | null;
+      pipelineSteps: Array<{
+        stepIndex: number;
+        title: string;
+        completed: boolean;
+        completedAt: Date | null;
+      }>;
+    }>;
+  }> {
+    const customer = await this.customerRepository.findOne({
+      where: { userId },
+      relations: [
+        'applications',
+        'applications.applicationType',
+        'applications.pipelineProgress',
+      ],
+    });
+    if (!customer) {
+      throw new NotFoundException('Customer profile not found for current user');
+    }
+
+    const applications = (customer.applications ?? [])
+      .slice()
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((app) => ({
+        applicationId: app.id,
+        applicationType: app.applicationType
+          ? {
+              id: app.applicationType.id,
+              name: app.applicationType.name,
+            }
+          : null,
+        pipelineSteps: (app.pipelineProgress ?? [])
+          .slice()
+          .sort((a, b) => a.stepIndex - b.stepIndex)
+          .map((step) => ({
+            stepIndex: step.stepIndex,
+            title: step.title,
+            completed: !!step.completedAt,
+            completedAt: step.completedAt ?? null,
+          })),
+      }));
+
+    return {
+      customerId: customer.id,
+      applications,
+    };
+  }
+
+  async findMyDocuments(userId: string): Promise<{
+    customerId: string;
+    applications: Array<{
+      applicationId: string;
+      applicationType: { id: string; name: string } | null;
+      summary: {
+        uploaded: number;
+        remaining: number;
+        total: number;
+      };
+      documents: Array<{
+        id: string;
+        requirementKey: string;
+        sectionTitle: string;
+        itemLabel: string;
+        status: string;
+        uploaded: boolean;
+        uploadedAt: Date | null;
+      }>;
+    }>;
+  }> {
+    const customer = await this.customerRepository.findOne({
+      where: { userId },
+      relations: [
+        'applications',
+        'applications.applicationType',
+        'applications.applicationDocuments',
+        'applications.applicationDocuments.requirement',
+      ],
+    });
+    if (!customer) {
+      throw new NotFoundException('Customer profile not found for current user');
+    }
+
+    const applications = (customer.applications ?? [])
+      .slice()
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((app) => {
+        const documents = (app.applicationDocuments ?? [])
+          .slice()
+          .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+          .map((doc) => ({
+            id: doc.id,
+            requirementKey: doc.requirement.requirementKey,
+            sectionTitle: doc.requirement.sectionTitle,
+            itemLabel: doc.requirement.itemLabel,
+            status: doc.status,
+            uploaded: !!doc.uploadedAt,
+            uploadedAt: doc.uploadedAt ?? null,
+          }));
+
+        const uploaded = documents.filter((d) => d.uploaded).length;
+        const total = documents.length;
+        const remaining = total - uploaded;
+
+        return {
+          applicationId: app.id,
+          applicationType: app.applicationType
+            ? {
+                id: app.applicationType.id,
+                name: app.applicationType.name,
+              }
+            : null,
+          summary: {
+            uploaded,
+            remaining,
+            total,
+          },
+          documents,
+        };
+      });
+
+    return {
+      customerId: customer.id,
+      applications,
+    };
   }
 
   async findOneDetail(customerId: string, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
@@ -479,6 +699,40 @@ export class CustomersService {
     if (existing) {
       throw new ConflictException('Email already in use');
     }
+  }
+
+  private async assertCustomerEmailAvailableForInvite(normalizedEmail: string): Promise<void> {
+    const [existingCustomer, existingUser, existingInvite] = await Promise.all([
+      this.customerRepository.findOne({ where: { email: normalizedEmail } }),
+      this.userRepository.findOne({ where: { email: normalizedEmail } }),
+      this.customerInviteRepository.findOne({
+        where: {
+          email: normalizedEmail,
+          acceptedAt: IsNull(),
+          expiresAt: MoreThan(new Date()),
+        },
+      }),
+    ]);
+    if (!existingCustomer) {
+      throw new NotFoundException('Customer does not exist. Create customer first before inviting.');
+    }
+    if (existingCustomer.userId || existingUser) {
+      throw new ConflictException('Email already in use');
+    }
+    if (existingInvite) {
+      throw new ConflictException('An active invite already exists for this email');
+    }
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private getCustomerInviteExpiryDate(): Date {
+    const hoursRaw = this.configService.get<string>('CUSTOMER_INVITE_EXPIRES_HOURS', '48');
+    const hours = Number(hoursRaw);
+    const safeHours = Number.isFinite(hours) && hours > 0 ? hours : 48;
+    return new Date(Date.now() + safeHours * 60 * 60 * 1000);
   }
 
   private async resolveAssociateAssignmentOnCreate(

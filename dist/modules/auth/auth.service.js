@@ -55,15 +55,19 @@ const bcrypt = __importStar(require("bcrypt"));
 const user_entity_1 = require("../users/entities/user.entity");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
+const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const associate_invite_entity_1 = require("../associates/entities/associate-invite.entity");
+const customer_invite_entity_1 = require("../customers/entities/customer-invite.entity");
 let AuthService = class AuthService {
     usersRepository;
     invitesRepository;
+    customerInvitesRepository;
     jwtService;
     dataSource;
-    constructor(usersRepository, invitesRepository, jwtService, dataSource) {
+    constructor(usersRepository, invitesRepository, customerInvitesRepository, jwtService, dataSource) {
         this.usersRepository = usersRepository;
         this.invitesRepository = invitesRepository;
+        this.customerInvitesRepository = customerInvitesRepository;
         this.jwtService = jwtService;
         this.dataSource = dataSource;
     }
@@ -111,6 +115,35 @@ let AuthService = class AuthService {
         }
         if (user.role !== user_role_enum_1.UserRole.ASSOCIATE) {
             throw new common_1.ForbiddenException('Only associate can login here');
+        }
+        if (!user.isActive) {
+            throw new common_1.ForbiddenException('Account is inactive');
+        }
+        const token = await this.jwtService.signAsync({
+            sub: user.id,
+            email: user.email,
+            role: user.role,
+        });
+        return {
+            accessToken: token,
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: names.firstName,
+                lastName: names.lastName,
+                role: user.role,
+            },
+        };
+    }
+    async customerLogin(customerLoginDto) {
+        const user = await this.findUserForLogin(customerLoginDto.email);
+        const names = this.getUserNames(user);
+        const isPasswordValid = await bcrypt.compare(customerLoginDto.password, user.password);
+        if (!isPasswordValid) {
+            throw new common_1.UnauthorizedException('Invalid credentials');
+        }
+        if (user.role !== user_role_enum_1.UserRole.CUSTOMER) {
+            throw new common_1.ForbiddenException('Only customer can login here');
         }
         if (!user.isActive) {
             throw new common_1.ForbiddenException('Account is inactive');
@@ -208,6 +241,62 @@ let AuthService = class AuthService {
             message: 'Associate account created successfully. You can now log in.',
         };
     }
+    async validateCustomerInviteToken(token) {
+        const invite = await this.findActiveCustomerInviteByToken(token);
+        return {
+            email: invite.email,
+            firstName: invite.firstName ?? null,
+            lastName: invite.lastName ?? null,
+            phoneNumber: invite.phoneNumber ?? null,
+            property: invite.property ?? null,
+            address: invite.address ?? null,
+            profilePhoto: invite.profilePhoto ?? null,
+            expiresAt: invite.expiresAt,
+        };
+    }
+    async acceptCustomerInvite(dto) {
+        const token = dto.token.trim();
+        const normalizedEmail = dto.email.trim().toLowerCase();
+        const invite = await this.findActiveCustomerInviteByToken(token);
+        if (invite.email !== normalizedEmail) {
+            throw new common_1.UnauthorizedException('Invite token does not match email');
+        }
+        const existing = await this.usersRepository.findOne({ where: { email: normalizedEmail } });
+        if (existing) {
+            throw new common_1.ConflictException('Email is already registered');
+        }
+        const existingCustomer = await this.dataSource.getRepository(customer_profile_entity_1.CustomerProfile).findOne({
+            where: { email: normalizedEmail },
+        });
+        if (!existingCustomer) {
+            throw new common_1.NotFoundException('Customer profile not found. Create customer first.');
+        }
+        if (existingCustomer.userId) {
+            throw new common_1.ConflictException('Customer profile is already linked to a user');
+        }
+        const passwordHash = await bcrypt.hash(dto.password, 10);
+        await this.dataSource.transaction(async (manager) => {
+            const userRow = manager.create(user_entity_1.User, {
+                email: normalizedEmail,
+                password: passwordHash,
+                role: user_role_enum_1.UserRole.CUSTOMER,
+                isActive: true,
+            });
+            const user = await manager.save(user_entity_1.User, userRow);
+            existingCustomer.userId = user.id;
+            existingCustomer.email = normalizedEmail;
+            existingCustomer.firstName = dto.firstName.trim();
+            existingCustomer.lastName = dto.lastName.trim();
+            await manager.save(customer_profile_entity_1.CustomerProfile, existingCustomer);
+            invite.acceptedAt = new Date();
+            await manager.save(customer_invite_entity_1.CustomerInvite, invite);
+        });
+        return {
+            accepted: true,
+            email: normalizedEmail,
+            message: 'Customer account created successfully. You can now log in.',
+        };
+    }
     async findUserForLogin(emailInput) {
         const email = emailInput.trim().toLowerCase();
         const user = await this.usersRepository
@@ -250,13 +339,29 @@ let AuthService = class AuthService {
         }
         return invite;
     }
+    async findActiveCustomerInviteByToken(token) {
+        const tokenHash = this.hashToken(token);
+        const invite = await this.customerInvitesRepository.findOne({
+            where: {
+                tokenHash,
+                acceptedAt: (0, typeorm_2.IsNull)(),
+                expiresAt: (0, typeorm_2.MoreThan)(new Date()),
+            },
+        });
+        if (!invite) {
+            throw new common_1.UnauthorizedException('Invalid or expired invite token');
+        }
+        return invite;
+    }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __param(1, (0, typeorm_1.InjectRepository)(associate_invite_entity_1.AssociateInvite)),
+    __param(2, (0, typeorm_1.InjectRepository)(customer_invite_entity_1.CustomerInvite)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository,
         typeorm_2.Repository,
         jwt_1.JwtService,
         typeorm_2.DataSource])

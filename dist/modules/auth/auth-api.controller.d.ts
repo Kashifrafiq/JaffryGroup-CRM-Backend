@@ -1,6 +1,7 @@
 import { AuthService } from './auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { AcceptAssociateInviteDto } from './dto/accept-associate-invite.dto';
+import { AcceptCustomerInviteDto } from './dto/accept-customer-invite.dto';
 export declare class AuthApiController {
     private readonly authService;
     constructor(authService: AuthService);
@@ -8,6 +9,7 @@ export declare class AuthApiController {
         ok: boolean;
         login: string;
         associateLogin: string;
+        customerLogin: string;
     };
     adminLoginHelp(): {
         ok: boolean;
@@ -55,6 +57,29 @@ export declare class AuthApiController {
             role: import("../users/entities/user-role.enum").UserRole.ASSOCIATE;
         };
     }>;
+    customerLoginHelp(): {
+        ok: boolean;
+        reason: string;
+        method: string;
+        path: string;
+        bodyExample: {
+            email: string;
+            password: string;
+        };
+        headers: {
+            'Content-Type': string;
+        };
+    };
+    customerLogin(customerLoginDto: AdminLoginDto): Promise<{
+        accessToken: string;
+        user: {
+            id: string;
+            email: string;
+            firstName: string;
+            lastName: string;
+            role: import("../users/entities/user-role.enum").UserRole.CUSTOMER;
+        };
+    }>;
     validateAssociateInvite(token: string): Promise<{
         email: string;
         firstName: string | null;
@@ -67,6 +92,21 @@ export declare class AuthApiController {
         expiresAt: Date;
     }>;
     acceptAssociateInvite(dto: AcceptAssociateInviteDto): Promise<{
+        accepted: boolean;
+        email: string;
+        message: string;
+    }>;
+    validateCustomerInvite(token: string): Promise<{
+        email: string;
+        firstName: string | null;
+        lastName: string | null;
+        phoneNumber: string | null;
+        property: string | null;
+        address: string | null;
+        profilePhoto: string | null;
+        expiresAt: Date;
+    }>;
+    acceptCustomerInvite(dto: AcceptCustomerInviteDto): Promise<{
         accepted: boolean;
         email: string;
         message: string;

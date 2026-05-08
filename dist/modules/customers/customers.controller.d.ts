@@ -1,6 +1,7 @@
 import { User } from '../users/entities/user.entity';
 import { CustomersService } from './customers.service';
 import { CreateCustomerApiDto } from './dto/create-customer-api.dto';
+import { InviteCustomerDto } from './dto/invite-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerApplicationDto } from './dto/create-customer-application.dto';
@@ -40,6 +41,11 @@ export declare class CustomersController {
             }[] | undefined;
         }[];
     }>;
+    invite(dto: InviteCustomerDto, req: RequestWithJwtUser): Promise<{
+        inviteSent: true;
+        email: string;
+        expiresAt: Date;
+    }>;
     findAll(query: ListCustomersQueryDto, req: RequestWithJwtUser): Promise<{
         id: string;
         profilePhoto: string | undefined;
@@ -68,6 +74,52 @@ export declare class CustomersController {
             }[] | undefined;
         }[];
     }[]>;
+    me(req: RequestWithJwtUser): Promise<{
+        id: string;
+        name: string;
+        email: string;
+        applicationType: string | null;
+    }>;
+    myPipeline(req: RequestWithJwtUser): Promise<{
+        customerId: string;
+        applications: Array<{
+            applicationId: string;
+            applicationType: {
+                id: string;
+                name: string;
+            } | null;
+            pipelineSteps: Array<{
+                stepIndex: number;
+                title: string;
+                completed: boolean;
+                completedAt: Date | null;
+            }>;
+        }>;
+    }>;
+    myDocuments(req: RequestWithJwtUser): Promise<{
+        customerId: string;
+        applications: Array<{
+            applicationId: string;
+            applicationType: {
+                id: string;
+                name: string;
+            } | null;
+            summary: {
+                uploaded: number;
+                remaining: number;
+                total: number;
+            };
+            documents: Array<{
+                id: string;
+                requirementKey: string;
+                sectionTitle: string;
+                itemLabel: string;
+                status: string;
+                uploaded: boolean;
+                uploadedAt: Date | null;
+            }>;
+        }>;
+    }>;
     findOne(customerId: string, req: RequestWithJwtUser): Promise<{
         id: string;
         profilePhoto: string | undefined;
