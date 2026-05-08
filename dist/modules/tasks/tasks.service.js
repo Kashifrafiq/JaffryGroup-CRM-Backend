@@ -19,6 +19,7 @@ const typeorm_2 = require("typeorm");
 const task_entity_1 = require("./entities/task.entity");
 const task_enums_1 = require("./entities/task.enums");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
+const user_role_enum_1 = require("../users/entities/user-role.enum");
 let TasksService = class TasksService {
     taskRepository;
     associateRepository;
@@ -100,6 +101,23 @@ let TasksService = class TasksService {
             task.startDate = new Date(updateTaskDto.startDate);
         if (updateTaskDto.endDate !== undefined)
             task.endDate = new Date(updateTaskDto.endDate);
+        return this.taskRepository.save(task);
+    }
+    async updateStatusByActor(id, status, actor) {
+        const task = await this.findOne(id);
+        if (actor.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            const associate = await this.associateRepository.findOne({
+                where: { userId: actor.id },
+                select: ['id'],
+            });
+            if (!associate) {
+                throw new common_1.ForbiddenException('Associate profile not found');
+            }
+            if (!task.assignedTo?.id || task.assignedTo.id !== associate.id) {
+                throw new common_1.ForbiddenException('You can only update status for tasks assigned to you');
+            }
+        }
+        task.status = status;
         return this.taskRepository.save(task);
     }
     async remove(id) {

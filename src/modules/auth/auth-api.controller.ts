@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { AcceptAssociateInviteDto } from './dto/accept-associate-invite.dto';
 
 /** Same routes as `AuthController`, under `/api/auth` for clients that expect an `/api` prefix. */
 @Controller('api/auth')
@@ -54,5 +55,15 @@ export class AuthApiController {
   @Post('associate-login')
   associateLogin(@Body() associateLoginDto: AdminLoginDto) {
     return this.authService.associateLogin(associateLoginDto);
+  }
+
+  @Get('associate-invites/:token')
+  validateAssociateInvite(@Param('token') token: string) {
+    return this.authService.validateAssociateInviteToken(token);
+  }
+
+  @Post('associate-invites/accept')
+  acceptAssociateInvite(@Body() dto: AcceptAssociateInviteDto) {
+    return this.authService.acceptAssociateInvite(dto);
   }
 }

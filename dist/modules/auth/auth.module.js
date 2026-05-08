@@ -20,6 +20,7 @@ const admin_profile_entity_1 = require("../users/entities/admin-profile.entity")
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const jwt_strategy_1 = require("./strategies/jwt.strategy");
+const associate_invite_entity_1 = require("../associates/entities/associate-invite.entity");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -28,7 +29,7 @@ exports.AuthModule = AuthModule = __decorate([
         imports: [
             config_1.ConfigModule,
             passport_1.PassportModule,
-            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, admin_profile_entity_1.AdminProfile, associate_profile_entity_1.AssociateProfile, customer_profile_entity_1.CustomerProfile]),
+            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, admin_profile_entity_1.AdminProfile, associate_profile_entity_1.AssociateProfile, customer_profile_entity_1.CustomerProfile, associate_invite_entity_1.AssociateInvite]),
             jwt_1.JwtModule.registerAsync({
                 inject: [config_1.ConfigService],
                 useFactory: (configService) => ({

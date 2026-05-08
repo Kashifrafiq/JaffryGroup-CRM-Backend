@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TasksController = void 0;
 const common_1 = require("@nestjs/common");
+const common_2 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const roles_guard_1 = require("../../common/guards/roles.guard");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
@@ -21,6 +22,7 @@ const user_role_enum_1 = require("../users/entities/user-role.enum");
 const tasks_service_1 = require("./tasks.service");
 const create_task_dto_1 = require("./dto/create-task.dto");
 const update_task_dto_1 = require("./dto/update-task.dto");
+const patch_task_status_dto_1 = require("./dto/patch-task-status.dto");
 let TasksController = class TasksController {
     tasksService;
     constructor(tasksService) {
@@ -40,6 +42,9 @@ let TasksController = class TasksController {
     }
     update(id, updateTaskDto) {
         return this.tasksService.update(id, updateTaskDto);
+    }
+    updateStatus(id, dto, req) {
+        return this.tasksService.updateStatusByActor(id, dto.status, req.user);
     }
     remove(id) {
         return this.tasksService.remove(id);
@@ -85,6 +90,16 @@ __decorate([
     __metadata("design:paramtypes", [String, update_task_dto_1.UpdateTaskDto]),
     __metadata("design:returntype", void 0)
 ], TasksController.prototype, "update", null);
+__decorate([
+    (0, common_1.Patch)(':id/status'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_2.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, patch_task_status_dto_1.PatchTaskStatusDto, Object]),
+    __metadata("design:returntype", void 0)
+], TasksController.prototype, "updateStatus", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),

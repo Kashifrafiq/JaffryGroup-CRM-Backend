@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -6,6 +7,13 @@ import { UserRole } from '../users/entities/user-role.enum';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { PatchTaskStatusDto } from './dto/patch-task-status.dto';
+
+type JwtRequestUser = {
+  id: string;
+  email: string;
+  role: UserRole;
+};
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('tasks')
@@ -40,6 +48,16 @@ export class TasksController {
   @Roles(UserRole.ADMIN)
   update(@Param('id') id: string, @Body() updateTaskDto: UpdateTaskDto) {
     return this.tasksService.update(id, updateTaskDto);
+  }
+
+  @Patch(':id/status')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: PatchTaskStatusDto,
+    @Request() req: { user: JwtRequestUser },
+  ) {
+    return this.tasksService.updateStatusByActor(id, dto.status, req.user);
   }
 
   @Delete(':id')

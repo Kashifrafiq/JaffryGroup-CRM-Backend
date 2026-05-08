@@ -1,18 +1,25 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { Repository } from 'typeorm';
+import { createHash } from 'crypto';
+import { DataSource, IsNull, MoreThan, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/entities/user-role.enum';
+import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { AssociateInvite } from '../associates/entities/associate-invite.entity';
+import { AcceptAssociateInviteDto } from './dto/accept-associate-invite.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(AssociateInvite)
+    private readonly invitesRepository: Repository<AssociateInvite>,
     private readonly jwtService: JwtService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async adminLogin(adminLoginDto: AdminLoginDto) {
@@ -93,6 +100,89 @@ export class AuthService {
     };
   }
 
+  async validateAssociateInviteToken(token: string) {
+    const invite = await this.findActiveInviteByToken(token);
+    return {
+      email: invite.email,
+      firstName: invite.firstName ?? null,
+      lastName: invite.lastName ?? null,
+      roleLabel: invite.roleLabel ?? null,
+      department: invite.department ?? null,
+      phoneNumber: invite.phoneNumber ?? null,
+      address: invite.address ?? null,
+      profilePhoto: invite.profilePhoto ?? null,
+      expiresAt: invite.expiresAt,
+    };
+  }
+
+  async acceptAssociateInvite(dto: AcceptAssociateInviteDto) {
+    const token = dto.token.trim();
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const invite = await this.findActiveInviteByToken(token);
+    if (invite.email !== normalizedEmail) {
+      throw new UnauthorizedException('Invite token does not match email');
+    }
+
+    const existing = await this.usersRepository.findOne({ where: { email: normalizedEmail } });
+    if (existing) {
+      throw new ConflictException('Email is already registered');
+    }
+    const existingAssociate = await this.dataSource.getRepository(AssociateProfile).findOne({
+      where: { email: normalizedEmail },
+    });
+    if (existingAssociate?.userId) {
+      throw new ConflictException('Associate profile is already linked to a user');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    await this.dataSource.transaction(async (manager) => {
+      const userRow = manager.create(User, {
+        email: normalizedEmail,
+        password: passwordHash,
+        role: UserRole.ASSOCIATE,
+        isActive: true,
+      });
+      const user = await manager.save(User, userRow);
+
+      if (existingAssociate) {
+        existingAssociate.userId = user.id;
+        existingAssociate.email = normalizedEmail;
+        existingAssociate.firstName = dto.firstName.trim();
+        existingAssociate.lastName = dto.lastName.trim();
+        existingAssociate.role = (dto.roleLabel ?? invite.roleLabel ?? existingAssociate.role ?? 'associate').trim();
+        existingAssociate.department =
+          dto.department ?? invite.department ?? existingAssociate.department ?? undefined;
+        existingAssociate.phoneNumber =
+          dto.phoneNumber ?? invite.phoneNumber ?? existingAssociate.phoneNumber ?? undefined;
+        existingAssociate.address = dto.address ?? invite.address ?? existingAssociate.address ?? undefined;
+        existingAssociate.profilePhoto =
+          dto.profilePhoto ?? invite.profilePhoto ?? existingAssociate.profilePhoto ?? undefined;
+        await manager.save(AssociateProfile, existingAssociate);
+      } else {
+        const associateRow = manager.create(AssociateProfile);
+        associateRow.email = normalizedEmail;
+        associateRow.userId = user.id;
+        associateRow.firstName = dto.firstName.trim();
+        associateRow.lastName = dto.lastName.trim();
+        associateRow.role = (dto.roleLabel ?? invite.roleLabel ?? 'associate').trim();
+        associateRow.department = dto.department ?? invite.department ?? undefined;
+        associateRow.phoneNumber = dto.phoneNumber ?? invite.phoneNumber ?? undefined;
+        associateRow.address = dto.address ?? invite.address ?? undefined;
+        associateRow.profilePhoto = dto.profilePhoto ?? invite.profilePhoto ?? undefined;
+        await manager.save(AssociateProfile, associateRow);
+      }
+
+      invite.acceptedAt = new Date();
+      await manager.save(AssociateInvite, invite);
+    });
+
+    return {
+      accepted: true,
+      email: normalizedEmail,
+      message: 'Associate account created successfully. You can now log in.',
+    };
+  }
+
   private async findUserForLogin(emailInput: string): Promise<User> {
     const email = emailInput.trim().toLowerCase();
     const user = await this.usersRepository
@@ -121,5 +211,24 @@ export class AuthService {
       firstName: profile.firstName,
       lastName: profile.lastName,
     };
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token.trim()).digest('hex');
+  }
+
+  private async findActiveInviteByToken(token: string): Promise<AssociateInvite> {
+    const tokenHash = this.hashToken(token);
+    const invite = await this.invitesRepository.findOne({
+      where: {
+        tokenHash,
+        acceptedAt: IsNull(),
+        expiresAt: MoreThan(new Date()),
+      },
+    });
+    if (!invite) {
+      throw new UnauthorizedException('Invalid or expired invite token');
+    }
+    return invite;
   }
 }

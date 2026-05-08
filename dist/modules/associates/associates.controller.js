@@ -19,6 +19,7 @@ const roles_guard_1 = require("../../common/guards/roles.guard");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const create_associate_dto_1 = require("./dto/create-associate.dto");
+const invite_associate_dto_1 = require("./dto/invite-associate.dto");
 const update_associate_dto_1 = require("./dto/update-associate.dto");
 const associates_service_1 = require("./associates.service");
 let AssociatesController = class AssociatesController {
@@ -28,6 +29,9 @@ let AssociatesController = class AssociatesController {
     }
     create(createAssociateDto, req) {
         return this.associatesService.createAssociate(createAssociateDto, req.user);
+    }
+    invite(dto, req) {
+        return this.associatesService.inviteAssociate(dto, req.user);
     }
     findAll() {
         return this.associatesService.findAll();
@@ -52,6 +56,15 @@ __decorate([
     __metadata("design:paramtypes", [create_associate_dto_1.CreateAssociateDto, Object]),
     __metadata("design:returntype", void 0)
 ], AssociatesController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)('invite'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [invite_associate_dto_1.InviteAssociateDto, Object]),
+    __metadata("design:returntype", void 0)
+], AssociatesController.prototype, "invite", null);
 __decorate([
     (0, common_1.Get)(),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),

@@ -10,17 +10,21 @@ exports.AssociatesModule = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const task_entity_1 = require("../tasks/entities/task.entity");
+const user_entity_1 = require("../users/entities/user.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const associates_controller_1 = require("./associates.controller");
+const associate_invite_mail_service_1 = require("./associate-invite-mail.service");
 const associates_service_1 = require("./associates.service");
+const associate_invite_entity_1 = require("./entities/associate-invite.entity");
 let AssociatesModule = class AssociatesModule {
 };
 exports.AssociatesModule = AssociatesModule;
 exports.AssociatesModule = AssociatesModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([associate_profile_entity_1.AssociateProfile, task_entity_1.Task])],
+        imports: [typeorm_1.TypeOrmModule.forFeature([associate_profile_entity_1.AssociateProfile, associate_invite_entity_1.AssociateInvite, user_entity_1.User, task_entity_1.Task])],
         controllers: [associates_controller_1.AssociatesController],
-        providers: [associates_service_1.AssociatesService],
+        providers: [associates_service_1.AssociatesService, associate_invite_mail_service_1.AssociateInviteMailService],
+        exports: [typeorm_1.TypeOrmModule],
     })
 ], AssociatesModule);
 //# sourceMappingURL=associates.module.js.map

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,6 +14,12 @@ import {
   AssociateProfile,
   AssociateStatus,
 } from '../users/entities/associate-profile.entity';
+import { UserRole } from '../users/entities/user-role.enum';
+
+type JwtActor = {
+  id: string;
+  role: UserRole;
+};
 
 @Injectable()
 export class TasksService {
@@ -101,6 +108,26 @@ export class TasksService {
     if (updateTaskDto.startDate !== undefined) task.startDate = new Date(updateTaskDto.startDate);
     if (updateTaskDto.endDate !== undefined) task.endDate = new Date(updateTaskDto.endDate);
 
+    return this.taskRepository.save(task);
+  }
+
+  async updateStatusByActor(id: string, status: TaskStatus, actor: JwtActor): Promise<Task> {
+    const task = await this.findOne(id);
+
+    if (actor.role === UserRole.ASSOCIATE) {
+      const associate = await this.associateRepository.findOne({
+        where: { userId: actor.id },
+        select: ['id'],
+      });
+      if (!associate) {
+        throw new ForbiddenException('Associate profile not found');
+      }
+      if (!task.assignedTo?.id || task.assignedTo.id !== associate.id) {
+        throw new ForbiddenException('You can only update status for tasks assigned to you');
+      }
+    }
+
+    task.status = status;
     return this.taskRepository.save(task);
   }
 

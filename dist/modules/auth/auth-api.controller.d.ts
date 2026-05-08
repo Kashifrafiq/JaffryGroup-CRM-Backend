@@ -1,5 +1,6 @@
 import { AuthService } from './auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { AcceptAssociateInviteDto } from './dto/accept-associate-invite.dto';
 export declare class AuthApiController {
     private readonly authService;
     constructor(authService: AuthService);
@@ -53,5 +54,21 @@ export declare class AuthApiController {
             lastName: string;
             role: import("../users/entities/user-role.enum").UserRole.ASSOCIATE;
         };
+    }>;
+    validateAssociateInvite(token: string): Promise<{
+        email: string;
+        firstName: string | null;
+        lastName: string | null;
+        roleLabel: string | null;
+        department: string | null;
+        phoneNumber: string | null;
+        address: string | null;
+        profilePhoto: string | null;
+        expiresAt: Date;
+    }>;
+    acceptAssociateInvite(dto: AcceptAssociateInviteDto): Promise<{
+        accepted: boolean;
+        email: string;
+        message: string;
     }>;
 }

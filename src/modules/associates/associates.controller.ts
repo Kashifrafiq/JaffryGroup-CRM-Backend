@@ -14,6 +14,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user-role.enum';
 import { CreateAssociateDto } from './dto/create-associate.dto';
+import { InviteAssociateDto } from './dto/invite-associate.dto';
 import { UpdateAssociateDto } from './dto/update-associate.dto';
 import { AssociatesService } from './associates.service';
 
@@ -32,6 +33,12 @@ export class AssociatesController {
   @Roles(UserRole.ADMIN)
   create(@Body() createAssociateDto: CreateAssociateDto, @Request() req: { user: JwtRequestUser }) {
     return this.associatesService.createAssociate(createAssociateDto, req.user);
+  }
+
+  @Post('invite')
+  @Roles(UserRole.ADMIN)
+  invite(@Body() dto: InviteAssociateDto, @Request() req: { user: JwtRequestUser }) {
+    return this.associatesService.inviteAssociate(dto, req.user);
   }
 
   @Get()

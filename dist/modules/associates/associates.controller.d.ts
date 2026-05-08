@@ -1,5 +1,6 @@
 import { UserRole } from '../users/entities/user-role.enum';
 import { CreateAssociateDto } from './dto/create-associate.dto';
+import { InviteAssociateDto } from './dto/invite-associate.dto';
 import { UpdateAssociateDto } from './dto/update-associate.dto';
 import { AssociatesService } from './associates.service';
 type JwtRequestUser = {
@@ -13,6 +14,13 @@ export declare class AssociatesController {
     create(createAssociateDto: CreateAssociateDto, req: {
         user: JwtRequestUser;
     }): Promise<import("../users/entities/associate-profile.entity").AssociateProfile>;
+    invite(dto: InviteAssociateDto, req: {
+        user: JwtRequestUser;
+    }): Promise<{
+        inviteSent: true;
+        email: string;
+        expiresAt: Date;
+    }>;
     findAll(): Promise<import("../users/entities/associate-profile.entity").AssociateProfile[]>;
     findOne(id: string): Promise<import("../users/entities/associate-profile.entity").AssociateProfile>;
     update(id: string, updateAssociateDto: UpdateAssociateDto): Promise<import("../users/entities/associate-profile.entity").AssociateProfile>;

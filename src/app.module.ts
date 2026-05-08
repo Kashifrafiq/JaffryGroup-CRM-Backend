@@ -9,6 +9,8 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { AssociatesModule } from './modules/associates/associates.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { ActivitiesModule } from './modules/activities/activities.module';
+import { RemindersModule } from './modules/reminders/reminders.module';
 
 const isTruthy = (value: string | undefined, defaultValue = false): boolean => {
   if (value === undefined) return defaultValue;
@@ -52,6 +54,8 @@ const isTruthy = (value: string | undefined, defaultValue = false): boolean => {
     AssociatesModule,
     ApplicationsModule,
     CustomersModule,
+    ActivitiesModule,
+    RemindersModule,
     TasksModule,
   ],
   controllers: [AppController],

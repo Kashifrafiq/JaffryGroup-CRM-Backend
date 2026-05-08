@@ -12,12 +12,13 @@ import { AdminProfile } from '../users/entities/admin-profile.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { AssociateInvite } from '../associates/entities/associate-invite.entity';
 
 @Module({
   imports: [
     ConfigModule,
     PassportModule,
-    TypeOrmModule.forFeature([User, AdminProfile, AssociateProfile, CustomerProfile]),
+    TypeOrmModule.forFeature([User, AdminProfile, AssociateProfile, CustomerProfile, AssociateInvite]),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
