@@ -4,11 +4,11 @@ import { UserRole } from './entities/user-role.enum';
 import { AdminProfile } from './entities/admin-profile.entity';
 import { AssociateProfile } from './entities/associate-profile.entity';
 import { CustomerProfile } from './entities/customer-profile.entity';
-import { AssociateCustomer } from './entities/associate-customer.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CustomersService } from '../customers/customers.service';
+import { PipelineStepAssignmentService } from '../customers/pipeline-step-assignment.service';
 type UserView = {
     id: string;
     email: string;
@@ -33,16 +33,20 @@ export declare class UsersService {
     private readonly adminProfileRepository;
     private readonly associateProfileRepository;
     private readonly customerProfileRepository;
-    private readonly associateCustomerRepository;
     private readonly customersService;
-    constructor(userRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>, associateCustomerRepository: Repository<AssociateCustomer>, customersService: CustomersService);
+    private readonly pipelineStepAssignmentService;
+    constructor(userRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>, customersService: CustomersService, pipelineStepAssignmentService: PipelineStepAssignmentService);
     create(createUserDto: CreateUserDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<UserView>;
     createCustomer(createCustomerDto: CreateCustomerDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<CustomerProfile>;
     findAll(): Promise<UserView[]>;
     findAssignedCustomers(associateUserId: string): Promise<UserView[]>;
     findOne(id: string): Promise<UserView>;
     update(id: string, updateUserDto: UpdateUserDto): Promise<UserView>;
-    assignCustomerToAssociate(customerId: string, associateId: string): Promise<AssociateCustomer>;
+    assignCustomerToAssociate(customerId: string, associateId: string): Promise<{
+        customerId: string;
+        associateId: string;
+        stepsAssigned: number;
+    }>;
     assignCustomerToAssociates(customerId: string, associateIds: string[]): Promise<{
         customerId: string;
         assignedAssociateIds: string[];

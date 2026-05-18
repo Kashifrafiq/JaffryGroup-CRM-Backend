@@ -114,7 +114,11 @@ export declare class UsersController {
         createdAt: Date;
         updatedAt: Date;
     }>;
-    assign(customerId: string, associateId: string): Promise<import("./entities/associate-customer.entity").AssociateCustomer>;
+    assign(customerId: string, associateId: string): Promise<{
+        customerId: string;
+        associateId: string;
+        stepsAssigned: number;
+    }>;
     assignCustomerToMultipleAssociates(customerId: string, body: BulkAssignAssociatesDto): Promise<{
         customerId: string;
         assignedAssociateIds: string[];

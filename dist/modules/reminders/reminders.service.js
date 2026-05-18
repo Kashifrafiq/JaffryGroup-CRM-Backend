@@ -18,7 +18,7 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
-const associate_customer_entity_1 = require("../users/entities/associate-customer.entity");
+const pipeline_step_assignment_service_1 = require("../customers/pipeline-step-assignment.service");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const customer_reminder_entity_1 = require("./entities/customer-reminder.entity");
 const customer_reminder_enums_1 = require("./entities/customer-reminder.enums");
@@ -26,12 +26,12 @@ let RemindersService = class RemindersService {
     reminderRepository;
     customerRepository;
     associateRepository;
-    associateCustomerRepository;
-    constructor(reminderRepository, customerRepository, associateRepository, associateCustomerRepository) {
+    pipelineStepAssignmentService;
+    constructor(reminderRepository, customerRepository, associateRepository, pipelineStepAssignmentService) {
         this.reminderRepository = reminderRepository;
         this.customerRepository = customerRepository;
         this.associateRepository = associateRepository;
-        this.associateCustomerRepository = associateCustomerRepository;
+        this.pipelineStepAssignmentService = pipelineStepAssignmentService;
     }
     async create(customerId, dto, actor) {
         await this.assertCanAccessCustomer(actor, customerId);
@@ -100,11 +100,8 @@ let RemindersService = class RemindersService {
             throw new common_1.ForbiddenException('Insufficient permissions');
         }
         const associateId = await this.associateIdForUser(actor.id);
-        const link = await this.associateCustomerRepository.findOne({
-            where: { associateId, customerId },
-            select: ['id'],
-        });
-        if (!link) {
+        const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(associateId, customerId);
+        if (!allowed) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
     }
@@ -125,10 +122,9 @@ exports.RemindersService = RemindersService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(customer_reminder_entity_1.CustomerReminder)),
     __param(1, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
     __param(2, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
-    __param(3, (0, typeorm_1.InjectRepository)(associate_customer_entity_1.AssociateCustomer)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository])
+        pipeline_step_assignment_service_1.PipelineStepAssignmentService])
 ], RemindersService);
 //# sourceMappingURL=reminders.service.js.map

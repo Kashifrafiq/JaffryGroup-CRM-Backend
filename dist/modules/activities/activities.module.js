@@ -14,19 +14,15 @@ const activities_service_1 = require("./activities.service");
 const customer_activity_entity_1 = require("./entities/customer-activity.entity");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
-const associate_customer_entity_1 = require("../users/entities/associate-customer.entity");
+const customers_module_1 = require("../customers/customers.module");
 let ActivitiesModule = class ActivitiesModule {
 };
 exports.ActivitiesModule = ActivitiesModule;
 exports.ActivitiesModule = ActivitiesModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([
-                customer_activity_entity_1.CustomerActivity,
-                customer_profile_entity_1.CustomerProfile,
-                associate_profile_entity_1.AssociateProfile,
-                associate_customer_entity_1.AssociateCustomer,
-            ]),
+            customers_module_1.CustomersModule,
+            typeorm_1.TypeOrmModule.forFeature([customer_activity_entity_1.CustomerActivity, customer_profile_entity_1.CustomerProfile, associate_profile_entity_1.AssociateProfile]),
         ],
         controllers: [activities_controller_1.ActivitiesController],
         providers: [activities_service_1.ActivitiesService],

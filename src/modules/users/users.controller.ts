@@ -69,6 +69,10 @@ export class UsersController {
     return this.usersService.update(id, updateUserDto);
   }
 
+  /**
+   * Assigns an associate to every pipeline step on all of the customer's applications.
+   * Prefer per-step assignment via PATCH /customers/.../pipeline-steps/:stepIndex/assign-associates.
+   */
   @Patch(':customerId/assign/:associateId')
   @Roles(UserRole.ADMIN)
   assign(
@@ -78,6 +82,7 @@ export class UsersController {
     return this.usersService.assignCustomerToAssociate(customerId, associateId);
   }
 
+  /** Bulk-assign associates to all pipeline steps for one customer. */
   @Patch(':customerId/assign-associates')
   @Roles(UserRole.ADMIN)
   assignCustomerToMultipleAssociates(
@@ -87,6 +92,7 @@ export class UsersController {
     return this.usersService.assignCustomerToAssociates(customerId, body.associateIds);
   }
 
+  /** Bulk-assign one associate to all pipeline steps on multiple customers. */
   @Patch(':associateId/assign-customers')
   @Roles(UserRole.ADMIN)
   assignMultipleCustomersToAssociate(

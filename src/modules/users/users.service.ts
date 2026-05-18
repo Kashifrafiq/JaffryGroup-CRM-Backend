@@ -12,11 +12,11 @@ import { UserRole } from './entities/user-role.enum';
 import { AdminProfile } from './entities/admin-profile.entity';
 import { AssociateProfile } from './entities/associate-profile.entity';
 import { CustomerProfile } from './entities/customer-profile.entity';
-import { AssociateCustomer } from './entities/associate-customer.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CustomersService } from '../customers/customers.service';
+import { PipelineStepAssignmentService } from '../customers/pipeline-step-assignment.service';
 
 type UserProfile = AdminProfile | AssociateProfile | CustomerProfile;
 
@@ -51,9 +51,8 @@ export class UsersService {
     private readonly associateProfileRepository: Repository<AssociateProfile>,
     @InjectRepository(CustomerProfile)
     private readonly customerProfileRepository: Repository<CustomerProfile>,
-    @InjectRepository(AssociateCustomer)
-    private readonly associateCustomerRepository: Repository<AssociateCustomer>,
     private readonly customersService: CustomersService,
+    private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
   ) {}
 
   async create(
@@ -113,10 +112,9 @@ export class UsersService {
       return [];
     }
 
-    const links = await this.associateCustomerRepository.find({
-      where: { associateId: associateProfile.id },
-    });
-    const customerIds = links.map((l) => l.customerId);
+    const customerIds = await this.pipelineStepAssignmentService.getCustomerIdsForAssociate(
+      associateProfile.id,
+    );
     if (!customerIds.length) {
       return [];
     }
@@ -179,23 +177,20 @@ export class UsersService {
     return this.toUserView(user, updatedProfile);
   }
 
-  async assignCustomerToAssociate(customerId: string, associateId: string): Promise<AssociateCustomer> {
-    const associate = await this.associateProfileRepository.findOne({ where: { id: associateId } });
-    if (!associate) throw new NotFoundException('Associate not found');
-
+  async assignCustomerToAssociate(
+    customerId: string,
+    associateId: string,
+  ): Promise<{ customerId: string; associateId: string; stepsAssigned: number }> {
     const customer = await this.customerProfileRepository.findOne({ where: { id: customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    const existing = await this.associateCustomerRepository.findOne({
-      where: { associateId, customerId },
-    });
-    if (existing) {
-      return existing;
-    }
+    const stepsAssigned =
+      await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(
+        customerId,
+        associateId,
+      );
 
-    return this.associateCustomerRepository.save(
-      this.associateCustomerRepository.create({ associateId, customerId }),
-    );
+    return { customerId, associateId, stepsAssigned };
   }
 
   async assignCustomerToAssociates(
@@ -209,19 +204,10 @@ export class UsersService {
     const assignedAssociateIds: string[] = [];
 
     for (const associateId of uniqueAssociateIds) {
-      const associate = await this.associateProfileRepository.findOne({ where: { id: associateId } });
-      if (!associate) {
-        throw new NotFoundException(`Associate ${associateId} not found`);
-      }
-
-      const existing = await this.associateCustomerRepository.findOne({
-        where: { associateId, customerId },
-      });
-      if (!existing) {
-        await this.associateCustomerRepository.save(
-          this.associateCustomerRepository.create({ associateId, customerId }),
-        );
-      }
+      await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(
+        customerId,
+        associateId,
+      );
       assignedAssociateIds.push(associateId);
     }
 
@@ -248,14 +234,10 @@ export class UsersService {
         throw new NotFoundException(`Customer ${customerId} not found`);
       }
 
-      const existing = await this.associateCustomerRepository.findOne({
-        where: { associateId, customerId },
-      });
-      if (!existing) {
-        await this.associateCustomerRepository.save(
-          this.associateCustomerRepository.create({ associateId, customerId }),
-        );
-      }
+      await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(
+        customerId,
+        associateId,
+      );
       assignedCustomerIds.push(customerId);
     }
     return {

@@ -14,19 +14,15 @@ const reminders_service_1 = require("./reminders.service");
 const customer_reminder_entity_1 = require("./entities/customer-reminder.entity");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
-const associate_customer_entity_1 = require("../users/entities/associate-customer.entity");
+const customers_module_1 = require("../customers/customers.module");
 let RemindersModule = class RemindersModule {
 };
 exports.RemindersModule = RemindersModule;
 exports.RemindersModule = RemindersModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            typeorm_1.TypeOrmModule.forFeature([
-                customer_reminder_entity_1.CustomerReminder,
-                customer_profile_entity_1.CustomerProfile,
-                associate_profile_entity_1.AssociateProfile,
-                associate_customer_entity_1.AssociateCustomer,
-            ]),
+            customers_module_1.CustomersModule,
+            typeorm_1.TypeOrmModule.forFeature([customer_reminder_entity_1.CustomerReminder, customer_profile_entity_1.CustomerProfile, associate_profile_entity_1.AssociateProfile]),
         ],
         controllers: [reminders_controller_1.RemindersController],
         providers: [reminders_service_1.RemindersService],

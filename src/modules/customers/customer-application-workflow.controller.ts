@@ -20,6 +20,8 @@ import { PatchPipelineStepDto } from './dto/patch-pipeline-step.dto';
 import { PresignDocumentUploadDto } from './dto/presign-document-upload.dto';
 import { CompleteDocumentUploadDto } from './dto/complete-document-upload.dto';
 import { PatchApplicationDocumentDto } from './dto/patch-application-document.dto';
+import { AssignPipelineStepAssociatesDto } from './dto/assign-pipeline-step-associates.dto';
+import { ReplacePipelineStepAssociatesDto } from './dto/replace-pipeline-step-associates.dto';
 
 type RequestWithJwtUser = {
   user: Pick<User, 'id' | 'email' | 'role'>;
@@ -42,6 +44,56 @@ export class CustomerApplicationWorkflowController {
     @Request() req: RequestWithJwtUser,
   ) {
     return this.workflowService.getWorkflow(customerId, applicationId, this.actor(req));
+  }
+
+  @Patch(':customerId/applications/:applicationId/pipeline-steps/:stepIndex/assign-associates')
+  @Roles(UserRole.ADMIN)
+  assignPipelineStepAssociates(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Param('stepIndex', ParseIntPipe) stepIndex: number,
+    @Body() dto: AssignPipelineStepAssociatesDto,
+  ) {
+    return this.workflowService.assignPipelineStepAssociates(
+      customerId,
+      applicationId,
+      stepIndex,
+      dto.associateIds,
+    );
+  }
+
+  @Patch(':customerId/applications/:applicationId/pipeline-steps/:stepIndex/associates')
+  @Roles(UserRole.ADMIN)
+  replacePipelineStepAssociates(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Param('stepIndex', ParseIntPipe) stepIndex: number,
+    @Body() dto: ReplacePipelineStepAssociatesDto,
+  ) {
+    return this.workflowService.replacePipelineStepAssociates(
+      customerId,
+      applicationId,
+      stepIndex,
+      dto.associateIds,
+    );
+  }
+
+  @Patch(
+    ':customerId/applications/:applicationId/pipeline-steps/:stepIndex/unassign/:associateId',
+  )
+  @Roles(UserRole.ADMIN)
+  unassignPipelineStepAssociate(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Param('stepIndex', ParseIntPipe) stepIndex: number,
+    @Param('associateId') associateId: string,
+  ) {
+    return this.workflowService.unassignPipelineStepAssociate(
+      customerId,
+      applicationId,
+      stepIndex,
+      associateId,
+    );
   }
 
   @Patch(':customerId/applications/:applicationId/pipeline-steps/:stepIndex')

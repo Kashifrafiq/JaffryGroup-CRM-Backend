@@ -7,7 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserRole } from '../users/entities/user-role.enum';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
-import { AssociateCustomer } from '../users/entities/associate-customer.entity';
+import { PipelineStepAssignmentService } from '../customers/pipeline-step-assignment.service';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { CustomerReminder } from './entities/customer-reminder.entity';
 import { CreateCustomerReminderDto } from './dto/create-customer-reminder.dto';
@@ -28,8 +28,7 @@ export class RemindersService {
     private readonly customerRepository: Repository<CustomerProfile>,
     @InjectRepository(AssociateProfile)
     private readonly associateRepository: Repository<AssociateProfile>,
-    @InjectRepository(AssociateCustomer)
-    private readonly associateCustomerRepository: Repository<AssociateCustomer>,
+    private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
   ) {}
 
   async create(
@@ -113,11 +112,11 @@ export class RemindersService {
       throw new ForbiddenException('Insufficient permissions');
     }
     const associateId = await this.associateIdForUser(actor.id);
-    const link = await this.associateCustomerRepository.findOne({
-      where: { associateId, customerId },
-      select: ['id'],
-    });
-    if (!link) {
+    const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(
+      associateId,
+      customerId,
+    );
+    if (!allowed) {
       throw new ForbiddenException('You do not have access to this customer');
     }
   }

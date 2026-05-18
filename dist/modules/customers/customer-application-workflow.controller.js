@@ -23,6 +23,8 @@ const patch_pipeline_step_dto_1 = require("./dto/patch-pipeline-step.dto");
 const presign_document_upload_dto_1 = require("./dto/presign-document-upload.dto");
 const complete_document_upload_dto_1 = require("./dto/complete-document-upload.dto");
 const patch_application_document_dto_1 = require("./dto/patch-application-document.dto");
+const assign_pipeline_step_associates_dto_1 = require("./dto/assign-pipeline-step-associates.dto");
+const replace_pipeline_step_associates_dto_1 = require("./dto/replace-pipeline-step-associates.dto");
 let CustomerApplicationWorkflowController = class CustomerApplicationWorkflowController {
     workflowService;
     constructor(workflowService) {
@@ -33,6 +35,15 @@ let CustomerApplicationWorkflowController = class CustomerApplicationWorkflowCon
     }
     getWorkflow(customerId, applicationId, req) {
         return this.workflowService.getWorkflow(customerId, applicationId, this.actor(req));
+    }
+    assignPipelineStepAssociates(customerId, applicationId, stepIndex, dto) {
+        return this.workflowService.assignPipelineStepAssociates(customerId, applicationId, stepIndex, dto.associateIds);
+    }
+    replacePipelineStepAssociates(customerId, applicationId, stepIndex, dto) {
+        return this.workflowService.replacePipelineStepAssociates(customerId, applicationId, stepIndex, dto.associateIds);
+    }
+    unassignPipelineStepAssociate(customerId, applicationId, stepIndex, associateId) {
+        return this.workflowService.unassignPipelineStepAssociate(customerId, applicationId, stepIndex, associateId);
     }
     patchPipelineStep(customerId, applicationId, stepIndex, dto, req) {
         return this.workflowService.patchPipelineStep(customerId, applicationId, stepIndex, dto.completed, this.actor(req));
@@ -67,6 +78,39 @@ __decorate([
     __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", void 0)
 ], CustomerApplicationWorkflowController.prototype, "getWorkflow", null);
+__decorate([
+    (0, common_1.Patch)(':customerId/applications/:applicationId/pipeline-steps/:stepIndex/assign-associates'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Param)('applicationId')),
+    __param(2, (0, common_1.Param)('stepIndex', common_1.ParseIntPipe)),
+    __param(3, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Number, assign_pipeline_step_associates_dto_1.AssignPipelineStepAssociatesDto]),
+    __metadata("design:returntype", void 0)
+], CustomerApplicationWorkflowController.prototype, "assignPipelineStepAssociates", null);
+__decorate([
+    (0, common_1.Patch)(':customerId/applications/:applicationId/pipeline-steps/:stepIndex/associates'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Param)('applicationId')),
+    __param(2, (0, common_1.Param)('stepIndex', common_1.ParseIntPipe)),
+    __param(3, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Number, replace_pipeline_step_associates_dto_1.ReplacePipelineStepAssociatesDto]),
+    __metadata("design:returntype", void 0)
+], CustomerApplicationWorkflowController.prototype, "replacePipelineStepAssociates", null);
+__decorate([
+    (0, common_1.Patch)(':customerId/applications/:applicationId/pipeline-steps/:stepIndex/unassign/:associateId'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Param)('applicationId')),
+    __param(2, (0, common_1.Param)('stepIndex', common_1.ParseIntPipe)),
+    __param(3, (0, common_1.Param)('associateId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Number, String]),
+    __metadata("design:returntype", void 0)
+], CustomerApplicationWorkflowController.prototype, "unassignPipelineStepAssociate", null);
 __decorate([
     (0, common_1.Patch)(':customerId/applications/:applicationId/pipeline-steps/:stepIndex'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),

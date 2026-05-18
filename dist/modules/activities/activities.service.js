@@ -19,18 +19,18 @@ const typeorm_2 = require("typeorm");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const customer_activity_entity_1 = require("./entities/customer-activity.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
-const associate_customer_entity_1 = require("../users/entities/associate-customer.entity");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
+const pipeline_step_assignment_service_1 = require("../customers/pipeline-step-assignment.service");
 let ActivitiesService = class ActivitiesService {
     activityRepository;
     customerRepository;
     associateRepository;
-    associateCustomerRepository;
-    constructor(activityRepository, customerRepository, associateRepository, associateCustomerRepository) {
+    pipelineStepAssignmentService;
+    constructor(activityRepository, customerRepository, associateRepository, pipelineStepAssignmentService) {
         this.activityRepository = activityRepository;
         this.customerRepository = customerRepository;
         this.associateRepository = associateRepository;
-        this.associateCustomerRepository = associateCustomerRepository;
+        this.pipelineStepAssignmentService = pipelineStepAssignmentService;
     }
     async create(customerId, dto, actor) {
         const customer = await this.customerRepository.findOne({ where: { id: customerId } });
@@ -101,11 +101,8 @@ let ActivitiesService = class ActivitiesService {
         return associate.id;
     }
     async assertAssociateAssignedToCustomer(associateId, customerId) {
-        const link = await this.associateCustomerRepository.findOne({
-            where: { associateId, customerId },
-            select: ['id'],
-        });
-        if (!link) {
+        const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(associateId, customerId);
+        if (!allowed) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
     }
@@ -116,10 +113,9 @@ exports.ActivitiesService = ActivitiesService = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(customer_activity_entity_1.CustomerActivity)),
     __param(1, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
     __param(2, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
-    __param(3, (0, typeorm_1.InjectRepository)(associate_customer_entity_1.AssociateCustomer)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository])
+        pipeline_step_assignment_service_1.PipelineStepAssignmentService])
 ], ActivitiesService);
 //# sourceMappingURL=activities.service.js.map

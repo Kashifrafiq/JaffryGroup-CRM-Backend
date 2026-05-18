@@ -28,6 +28,13 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            pipelineSteps: {
+                stepIndex: number;
+                title: string;
+                completedAt: Date | null;
+                assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+            }[];
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             documents: {
                 id: string;
                 requirementKey: string;
@@ -61,6 +68,13 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            pipelineSteps: {
+                stepIndex: number;
+                title: string;
+                completedAt: Date | null;
+                assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+            }[];
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             documents: {
                 id: string;
                 requirementKey: string;
@@ -135,6 +149,13 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            pipelineSteps: {
+                stepIndex: number;
+                title: string;
+                completedAt: Date | null;
+                assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+            }[];
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             documents: {
                 id: string;
                 requirementKey: string;
@@ -163,6 +184,13 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            pipelineSteps: {
+                stepIndex: number;
+                title: string;
+                completedAt: Date | null;
+                assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+            }[];
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             documents: {
                 id: string;
                 requirementKey: string;
@@ -192,6 +220,13 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            pipelineSteps: {
+                stepIndex: number;
+                title: string;
+                completedAt: Date | null;
+                assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+            }[];
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             documents: {
                 id: string;
                 requirementKey: string;
@@ -220,6 +255,13 @@ export declare class CustomersController {
                 completedSteps: number;
                 totalSteps: number;
             };
+            pipelineSteps: {
+                stepIndex: number;
+                title: string;
+                completedAt: Date | null;
+                assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+            }[];
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             documents: {
                 id: string;
                 requirementKey: string;

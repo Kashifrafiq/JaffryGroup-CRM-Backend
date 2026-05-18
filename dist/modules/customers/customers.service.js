@@ -22,8 +22,8 @@ const typeorm_2 = require("typeorm");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const user_entity_1 = require("../users/entities/user.entity");
-const associate_customer_entity_1 = require("../users/entities/associate-customer.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
+const pipeline_step_assignment_service_1 = require("./pipeline-step-assignment.service");
 const customer_application_entity_1 = require("./entities/customer-application.entity");
 const customer_application_status_enum_1 = require("./entities/customer-application-status.enum");
 const application_types_service_1 = require("../applications/application-types.service");
@@ -36,8 +36,8 @@ const customer_invite_mail_service_1 = require("./customer-invite-mail.service")
 let CustomersService = CustomersService_1 = class CustomersService {
     customerRepository;
     applicationRepository;
-    associateCustomerRepository;
     associateProfileRepository;
+    pipelineStepAssignmentService;
     customerInviteRepository;
     userRepository;
     applicationTypesService;
@@ -47,11 +47,11 @@ let CustomersService = CustomersService_1 = class CustomersService {
     configService;
     dataSource;
     logger = new common_1.Logger(CustomersService_1.name);
-    constructor(customerRepository, applicationRepository, associateCustomerRepository, associateProfileRepository, customerInviteRepository, userRepository, applicationTypesService, applicationWorkflowService, customerApplicationWorkflowService, customerInviteMailService, configService, dataSource) {
+    constructor(customerRepository, applicationRepository, associateProfileRepository, pipelineStepAssignmentService, customerInviteRepository, userRepository, applicationTypesService, applicationWorkflowService, customerApplicationWorkflowService, customerInviteMailService, configService, dataSource) {
         this.customerRepository = customerRepository;
         this.applicationRepository = applicationRepository;
-        this.associateCustomerRepository = associateCustomerRepository;
         this.associateProfileRepository = associateProfileRepository;
+        this.pipelineStepAssignmentService = pipelineStepAssignmentService;
         this.customerInviteRepository = customerInviteRepository;
         this.userRepository = userRepository;
         this.applicationTypesService = applicationTypesService;
@@ -95,19 +95,11 @@ let CustomersService = CustomersService_1 = class CustomersService {
             });
             const savedApp = await em.save(customer_application_entity_1.CustomerApplication, app);
             await this.applicationWorkflowService.instantiateForNewApplication(em, savedApp.id, appType.id);
-            if (associateId) {
-                const existingLink = await em.findOne(associate_customer_entity_1.AssociateCustomer, {
-                    where: { associateId, customerId: saved.id },
-                });
-                if (!existingLink) {
-                    await em.save(associate_customer_entity_1.AssociateCustomer, em.create(associate_customer_entity_1.AssociateCustomer, {
-                        associateId,
-                        customerId: saved.id,
-                    }));
-                }
-            }
             return saved;
         });
+        if (associateId) {
+            await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(customer.id, associateId);
+        }
         return this.findOneDetail(customer.id, createdBy);
     }
     async inviteCustomer(dto, actor) {
@@ -512,10 +504,7 @@ let CustomersService = CustomersService_1 = class CustomersService {
         if (!associateProfile) {
             return [];
         }
-        const links = await this.associateCustomerRepository.find({
-            where: { associateId: associateProfile.id },
-        });
-        return links.map((l) => l.customerId);
+        return this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id);
     }
     async assertCanAccessCustomer(actor, customerId) {
         if (actor.role === user_role_enum_1.UserRole.ADMIN) {
@@ -524,8 +513,14 @@ let CustomersService = CustomersService_1 = class CustomersService {
         if (actor.role !== user_role_enum_1.UserRole.ASSOCIATE) {
             throw new common_1.ForbiddenException('Insufficient permissions');
         }
-        const ids = await this.customerIdsForAssociateUser(actor.id);
-        if (!ids.includes(customerId)) {
+        const associateProfile = await this.associateProfileRepository.findOne({
+            where: { userId: actor.id },
+        });
+        if (!associateProfile) {
+            throw new common_1.ForbiddenException('You do not have access to this customer');
+        }
+        const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(associateProfile.id, customerId);
+        if (!allowed) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
     }
@@ -606,39 +601,39 @@ let CustomersService = CustomersService_1 = class CustomersService {
             return customers;
         }
         try {
-            const customerIds = customers.map((c) => c.id);
-            const links = await this.associateCustomerRepository.find({
-                where: { customerId: (0, typeorm_2.In)(customerIds) },
-            });
-            const uniqueAssociateIds = [...new Set(links.map((l) => l.associateId))];
-            const associates = uniqueAssociateIds.length
-                ? await this.associateProfileRepository.find({
-                    where: { id: (0, typeorm_2.In)(uniqueAssociateIds) },
-                })
-                : [];
-            const associateById = new Map(associates.map((a) => [a.id, a]));
-            const linksByCustomerId = new Map();
-            for (const link of links) {
-                const rows = linksByCustomerId.get(link.customerId) ?? [];
-                rows.push(link);
-                linksByCustomerId.set(link.customerId, rows);
-            }
-            return customers.map((customer) => {
-                const assignedAssociates = (linksByCustomerId.get(customer.id) ?? [])
-                    .map((link) => associateById.get(link.associateId))
-                    .filter((a) => !!a)
-                    .map((a) => ({
-                    id: a.id,
-                    name: `${a.firstName} ${a.lastName}`.trim(),
-                }));
-                return { ...customer, assignedTo: assignedAssociates };
-            });
+            const enriched = await Promise.all(customers.map(async (customer) => {
+                const assigneesByApp = await this.pipelineStepAssignmentService.getAssigneesForCustomerApplications(customer.id);
+                const applications = customer.applications.map((app) => {
+                    const stepAssignees = assigneesByApp.get(app.applicationId) ?? new Map();
+                    const pipelineSteps = (app.pipelineSteps ?? []).map((step) => ({
+                        ...step,
+                        assignedTo: stepAssignees.get(step.stepIndex) ?? [],
+                    }));
+                    const assignedTo = this.uniqueAssignees(pipelineSteps.flatMap((s) => s.assignedTo));
+                    return { ...app, pipelineSteps, assignedTo };
+                });
+                const assignedTo = this.uniqueAssignees(applications.flatMap((a) => a.assignedTo));
+                return { ...customer, applications, assignedTo };
+            }));
+            return enriched;
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
-            this.logger.warn(`Could not load assigned associates, returning customers without them: ${message}`);
+            this.logger.warn(`Could not load pipeline step assignments: ${message}`);
             return customers.map((customer) => ({ ...customer, assignedTo: [] }));
         }
+    }
+    uniqueAssignees(assignees) {
+        const seen = new Set();
+        const result = [];
+        for (const assignee of assignees) {
+            if (seen.has(assignee.id)) {
+                continue;
+            }
+            seen.add(assignee.id);
+            result.push(assignee);
+        }
+        return result;
     }
     async resolveApplicationType(input) {
         if (input.applicationTypeId?.trim()) {
@@ -717,6 +712,16 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 completedSteps: (a.pipelineProgress ?? []).filter((p) => !!p.completedAt).length,
                 totalSteps: (a.pipelineProgress ?? []).length,
             },
+            pipelineSteps: (a.pipelineProgress ?? [])
+                .slice()
+                .sort((p1, p2) => p1.stepIndex - p2.stepIndex)
+                .map((p) => ({
+                stepIndex: p.stepIndex,
+                title: p.title,
+                completedAt: p.completedAt ?? null,
+                assignedTo: [],
+            })),
+            assignedTo: [],
             documents: includeDocuments
                 ? (a.applicationDocuments ?? [])
                     .slice()
@@ -748,14 +753,13 @@ exports.CustomersService = CustomersService = CustomersService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
     __param(1, (0, typeorm_1.InjectRepository)(customer_application_entity_1.CustomerApplication)),
-    __param(2, (0, typeorm_1.InjectRepository)(associate_customer_entity_1.AssociateCustomer)),
-    __param(3, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
+    __param(2, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
     __param(4, (0, typeorm_1.InjectRepository)(customer_invite_entity_1.CustomerInvite)),
     __param(5, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository,
+        pipeline_step_assignment_service_1.PipelineStepAssignmentService,
         typeorm_2.Repository,
         typeorm_2.Repository,
         application_types_service_1.ApplicationTypesService,

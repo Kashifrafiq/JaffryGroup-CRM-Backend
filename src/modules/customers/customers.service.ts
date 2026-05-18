@@ -14,8 +14,8 @@ import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { UserRole } from '../users/entities/user-role.enum';
 import { User } from '../users/entities/user.entity';
 import { JwtActor } from './jwt-actor.type';
-import { AssociateCustomer } from '../users/entities/associate-customer.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
+import { PipelineStepAssignmentService, PipelineStepAssignee } from './pipeline-step-assignment.service';
 import { CreateCustomerDto } from '../users/dto/create-customer.dto';
 import { ApplicationType } from '../applications/entities/application-type.entity';
 import { CustomerApplication } from './entities/customer-application.entity';
@@ -43,10 +43,9 @@ export class CustomersService {
     private readonly customerRepository: Repository<CustomerProfile>,
     @InjectRepository(CustomerApplication)
     private readonly applicationRepository: Repository<CustomerApplication>,
-    @InjectRepository(AssociateCustomer)
-    private readonly associateCustomerRepository: Repository<AssociateCustomer>,
     @InjectRepository(AssociateProfile)
     private readonly associateProfileRepository: Repository<AssociateProfile>,
+    private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
     @InjectRepository(CustomerInvite)
     private readonly customerInviteRepository: Repository<CustomerInvite>,
     @InjectRepository(User)
@@ -104,22 +103,15 @@ export class CustomersService {
         savedApp.id,
         appType.id,
       );
-      if (associateId) {
-        const existingLink = await em.findOne(AssociateCustomer, {
-          where: { associateId, customerId: saved.id },
-        });
-        if (!existingLink) {
-          await em.save(
-            AssociateCustomer,
-            em.create(AssociateCustomer, {
-              associateId,
-              customerId: saved.id,
-            }),
-          );
-        }
-      }
       return saved;
     });
+
+    if (associateId) {
+      await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(
+        customer.id,
+        associateId,
+      );
+    }
 
     return this.findOneDetail(customer.id, createdBy);
   }
@@ -665,10 +657,7 @@ export class CustomersService {
     if (!associateProfile) {
       return [];
     }
-    const links = await this.associateCustomerRepository.find({
-      where: { associateId: associateProfile.id },
-    });
-    return links.map((l) => l.customerId);
+    return this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id);
   }
 
   private async assertCanAccessCustomer(actor: JwtActor, customerId: string): Promise<void> {
@@ -678,8 +667,17 @@ export class CustomersService {
     if (actor.role !== UserRole.ASSOCIATE) {
       throw new ForbiddenException('Insufficient permissions');
     }
-    const ids = await this.customerIdsForAssociateUser(actor.id);
-    if (!ids.includes(customerId)) {
+    const associateProfile = await this.associateProfileRepository.findOne({
+      where: { userId: actor.id },
+    });
+    if (!associateProfile) {
+      throw new ForbiddenException('You do not have access to this customer');
+    }
+    const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(
+      associateProfile.id,
+      customerId,
+    );
+    if (!allowed) {
       throw new ForbiddenException('You do not have access to this customer');
     }
   }
@@ -778,39 +776,44 @@ export class CustomersService {
     }
 
     try {
-      const customerIds = customers.map((c) => c.id);
-      const links = await this.associateCustomerRepository.find({
-        where: { customerId: In(customerIds) },
-      });
-      const uniqueAssociateIds = [...new Set(links.map((l) => l.associateId))];
-      const associates = uniqueAssociateIds.length
-        ? await this.associateProfileRepository.find({
-            where: { id: In(uniqueAssociateIds) },
-          })
-        : [];
-      const associateById = new Map(associates.map((a) => [a.id, a]));
-      const linksByCustomerId = new Map<string, typeof links>();
-      for (const link of links) {
-        const rows = linksByCustomerId.get(link.customerId) ?? [];
-        rows.push(link);
-        linksByCustomerId.set(link.customerId, rows);
-      }
-
-      return customers.map((customer) => {
-        const assignedAssociates = (linksByCustomerId.get(customer.id) ?? [])
-          .map((link) => associateById.get(link.associateId))
-          .filter((a): a is AssociateProfile => !!a)
-          .map((a) => ({
-            id: a.id,
-            name: `${a.firstName} ${a.lastName}`.trim(),
-          }));
-        return { ...customer, assignedTo: assignedAssociates };
-      });
+      const enriched = await Promise.all(
+        customers.map(async (customer) => {
+          const assigneesByApp =
+            await this.pipelineStepAssignmentService.getAssigneesForCustomerApplications(
+              customer.id,
+            );
+          const applications = customer.applications.map((app) => {
+            const stepAssignees = assigneesByApp.get(app.applicationId) ?? new Map();
+            const pipelineSteps = (app.pipelineSteps ?? []).map((step) => ({
+              ...step,
+              assignedTo: stepAssignees.get(step.stepIndex) ?? [],
+            }));
+            const assignedTo = this.uniqueAssignees(pipelineSteps.flatMap((s) => s.assignedTo));
+            return { ...app, pipelineSteps, assignedTo };
+          });
+          const assignedTo = this.uniqueAssignees(applications.flatMap((a) => a.assignedTo));
+          return { ...customer, applications, assignedTo };
+        }),
+      );
+      return enriched;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(`Could not load assigned associates, returning customers without them: ${message}`);
+      this.logger.warn(`Could not load pipeline step assignments: ${message}`);
       return customers.map((customer) => ({ ...customer, assignedTo: [] }));
     }
+  }
+
+  private uniqueAssignees(assignees: PipelineStepAssignee[]): PipelineStepAssignee[] {
+    const seen = new Set<string>();
+    const result: PipelineStepAssignee[] = [];
+    for (const assignee of assignees) {
+      if (seen.has(assignee.id)) {
+        continue;
+      }
+      seen.add(assignee.id);
+      result.push(assignee);
+    }
+    return result;
   }
 
   private async resolveApplicationType(input: {
@@ -903,6 +906,16 @@ export class CustomersService {
           completedSteps: (a.pipelineProgress ?? []).filter((p) => !!p.completedAt).length,
           totalSteps: (a.pipelineProgress ?? []).length,
         },
+        pipelineSteps: (a.pipelineProgress ?? [])
+          .slice()
+          .sort((p1, p2) => p1.stepIndex - p2.stepIndex)
+          .map((p) => ({
+            stepIndex: p.stepIndex,
+            title: p.title,
+            completedAt: p.completedAt ?? null,
+            assignedTo: [] as PipelineStepAssignee[],
+          })),
+        assignedTo: [] as PipelineStepAssignee[],
         documents: includeDocuments
           ? (a.applicationDocuments ?? [])
               .slice()

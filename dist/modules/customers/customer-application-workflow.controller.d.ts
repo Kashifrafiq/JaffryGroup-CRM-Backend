@@ -4,6 +4,8 @@ import { PatchPipelineStepDto } from './dto/patch-pipeline-step.dto';
 import { PresignDocumentUploadDto } from './dto/presign-document-upload.dto';
 import { CompleteDocumentUploadDto } from './dto/complete-document-upload.dto';
 import { PatchApplicationDocumentDto } from './dto/patch-application-document.dto';
+import { AssignPipelineStepAssociatesDto } from './dto/assign-pipeline-step-associates.dto';
+import { ReplacePipelineStepAssociatesDto } from './dto/replace-pipeline-step-associates.dto';
 type RequestWithJwtUser = {
     user: Pick<User, 'id' | 'email' | 'role'>;
 };
@@ -22,6 +24,7 @@ export declare class CustomerApplicationWorkflowController {
             stepIndex: number;
             title: string;
             completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
         documents: {
             id: string;
@@ -40,6 +43,21 @@ export declare class CustomerApplicationWorkflowController {
             notes: string | null;
         }[];
     }>;
+    assignPipelineStepAssociates(customerId: string, applicationId: string, stepIndex: number, dto: AssignPipelineStepAssociatesDto): Promise<{
+        pipelineProgressId: string;
+        assignedAssociateIds: string[];
+        totalAssigned: number;
+    }>;
+    replacePipelineStepAssociates(customerId: string, applicationId: string, stepIndex: number, dto: ReplacePipelineStepAssociatesDto): Promise<{
+        pipelineProgressId: string;
+        assignedAssociateIds: string[];
+        totalAssigned: number;
+    }>;
+    unassignPipelineStepAssociate(customerId: string, applicationId: string, stepIndex: number, associateId: string): Promise<{
+        pipelineProgressId: string;
+        associateId: string;
+        removed: boolean;
+    }>;
     patchPipelineStep(customerId: string, applicationId: string, stepIndex: number, dto: PatchPipelineStepDto, req: RequestWithJwtUser): Promise<{
         applicationId: string;
         applicationType: {
@@ -51,6 +69,7 @@ export declare class CustomerApplicationWorkflowController {
             stepIndex: number;
             title: string;
             completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
         documents: {
             id: string;
@@ -92,6 +111,7 @@ export declare class CustomerApplicationWorkflowController {
             stepIndex: number;
             title: string;
             completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
         documents: {
             id: string;
@@ -121,6 +141,7 @@ export declare class CustomerApplicationWorkflowController {
             stepIndex: number;
             title: string;
             completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
         documents: {
             id: string;
@@ -150,6 +171,7 @@ export declare class CustomerApplicationWorkflowController {
             stepIndex: number;
             title: string;
             completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
         documents: {
             id: string;

@@ -55,22 +55,22 @@ const user_role_enum_1 = require("./entities/user-role.enum");
 const admin_profile_entity_1 = require("./entities/admin-profile.entity");
 const associate_profile_entity_1 = require("./entities/associate-profile.entity");
 const customer_profile_entity_1 = require("./entities/customer-profile.entity");
-const associate_customer_entity_1 = require("./entities/associate-customer.entity");
 const customers_service_1 = require("../customers/customers.service");
+const pipeline_step_assignment_service_1 = require("../customers/pipeline-step-assignment.service");
 let UsersService = class UsersService {
     userRepository;
     adminProfileRepository;
     associateProfileRepository;
     customerProfileRepository;
-    associateCustomerRepository;
     customersService;
-    constructor(userRepository, adminProfileRepository, associateProfileRepository, customerProfileRepository, associateCustomerRepository, customersService) {
+    pipelineStepAssignmentService;
+    constructor(userRepository, adminProfileRepository, associateProfileRepository, customerProfileRepository, customersService, pipelineStepAssignmentService) {
         this.userRepository = userRepository;
         this.adminProfileRepository = adminProfileRepository;
         this.associateProfileRepository = associateProfileRepository;
         this.customerProfileRepository = customerProfileRepository;
-        this.associateCustomerRepository = associateCustomerRepository;
         this.customersService = customersService;
+        this.pipelineStepAssignmentService = pipelineStepAssignmentService;
     }
     async create(createUserDto, createdBy) {
         if (createUserDto.role === user_role_enum_1.UserRole.ASSOCIATE || createUserDto.role === user_role_enum_1.UserRole.CUSTOMER) {
@@ -115,10 +115,7 @@ let UsersService = class UsersService {
         if (!associateProfile) {
             return [];
         }
-        const links = await this.associateCustomerRepository.find({
-            where: { associateId: associateProfile.id },
-        });
-        const customerIds = links.map((l) => l.customerId);
+        const customerIds = await this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id);
         if (!customerIds.length) {
             return [];
         }
@@ -172,19 +169,11 @@ let UsersService = class UsersService {
         return this.toUserView(user, updatedProfile);
     }
     async assignCustomerToAssociate(customerId, associateId) {
-        const associate = await this.associateProfileRepository.findOne({ where: { id: associateId } });
-        if (!associate)
-            throw new common_1.NotFoundException('Associate not found');
         const customer = await this.customerProfileRepository.findOne({ where: { id: customerId } });
         if (!customer)
             throw new common_1.NotFoundException('Customer not found');
-        const existing = await this.associateCustomerRepository.findOne({
-            where: { associateId, customerId },
-        });
-        if (existing) {
-            return existing;
-        }
-        return this.associateCustomerRepository.save(this.associateCustomerRepository.create({ associateId, customerId }));
+        const stepsAssigned = await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(customerId, associateId);
+        return { customerId, associateId, stepsAssigned };
     }
     async assignCustomerToAssociates(customerId, associateIds) {
         const customer = await this.customerProfileRepository.findOne({ where: { id: customerId } });
@@ -193,16 +182,7 @@ let UsersService = class UsersService {
         const uniqueAssociateIds = [...new Set(associateIds)];
         const assignedAssociateIds = [];
         for (const associateId of uniqueAssociateIds) {
-            const associate = await this.associateProfileRepository.findOne({ where: { id: associateId } });
-            if (!associate) {
-                throw new common_1.NotFoundException(`Associate ${associateId} not found`);
-            }
-            const existing = await this.associateCustomerRepository.findOne({
-                where: { associateId, customerId },
-            });
-            if (!existing) {
-                await this.associateCustomerRepository.save(this.associateCustomerRepository.create({ associateId, customerId }));
-            }
+            await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(customerId, associateId);
             assignedAssociateIds.push(associateId);
         }
         return {
@@ -222,12 +202,7 @@ let UsersService = class UsersService {
             if (!customer) {
                 throw new common_1.NotFoundException(`Customer ${customerId} not found`);
             }
-            const existing = await this.associateCustomerRepository.findOne({
-                where: { associateId, customerId },
-            });
-            if (!existing) {
-                await this.associateCustomerRepository.save(this.associateCustomerRepository.create({ associateId, customerId }));
-            }
+            await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(customerId, associateId);
             assignedCustomerIds.push(customerId);
         }
         return {
@@ -354,12 +329,11 @@ exports.UsersService = UsersService = __decorate([
     __param(1, (0, typeorm_1.InjectRepository)(admin_profile_entity_1.AdminProfile)),
     __param(2, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
     __param(3, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
-    __param(4, (0, typeorm_1.InjectRepository)(associate_customer_entity_1.AssociateCustomer)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        typeorm_2.Repository,
-        customers_service_1.CustomersService])
+        customers_service_1.CustomersService,
+        pipeline_step_assignment_service_1.PipelineStepAssignmentService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

@@ -7,8 +7,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CustomerApplication } from './entities/customer-application.entity';
-import { AssociateCustomer } from '../users/entities/associate-customer.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
+import { PipelineStepAssignmentService } from './pipeline-step-assignment.service';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { UserRole } from '../users/entities/user-role.enum';
 import { JwtActor } from './jwt-actor.type';
@@ -29,10 +29,9 @@ export class CustomerApplicationWorkflowService {
     private readonly pipelineProgressRepository: Repository<CustomerApplicationPipelineProgress>,
     @InjectRepository(CustomerApplicationDocument)
     private readonly applicationDocumentRepository: Repository<CustomerApplicationDocument>,
-    @InjectRepository(AssociateCustomer)
-    private readonly associateCustomerRepository: Repository<AssociateCustomer>,
     @InjectRepository(AssociateProfile)
     private readonly associateProfileRepository: Repository<AssociateProfile>,
+    private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
     @InjectRepository(CustomerProfile)
     private readonly customerProfileRepository: Repository<CustomerProfile>,
     private readonly s3StorageService: S3StorageService,
@@ -46,7 +45,7 @@ export class CustomerApplicationWorkflowService {
   async getWorkflow(customerId: string, applicationId: string, actor: JwtActor) {
     const cid = this.tid(customerId);
     const aid = this.tid(applicationId);
-    await this.assertCanAccess(actor, cid);
+    await this.assertCanAccessApplication(actor, cid, aid);
     const app = await this.loadApplication(cid, aid, [
       'pipelineProgress',
       'applicationDocuments',
@@ -54,6 +53,48 @@ export class CustomerApplicationWorkflowService {
       'applicationType',
     ]);
     return this.buildWorkflowPayload(app);
+  }
+
+  async assignPipelineStepAssociates(
+    customerId: string,
+    applicationId: string,
+    stepIndex: number,
+    associateIds: string[],
+  ) {
+    const progress = await this.pipelineStepAssignmentService.resolvePipelineProgress(
+      this.tid(customerId),
+      this.tid(applicationId),
+      stepIndex,
+    );
+    return this.pipelineStepAssignmentService.assignAssociatesToStep(progress.id, associateIds);
+  }
+
+  async replacePipelineStepAssociates(
+    customerId: string,
+    applicationId: string,
+    stepIndex: number,
+    associateIds: string[],
+  ) {
+    const progress = await this.pipelineStepAssignmentService.resolvePipelineProgress(
+      this.tid(customerId),
+      this.tid(applicationId),
+      stepIndex,
+    );
+    return this.pipelineStepAssignmentService.replaceAssociatesOnStep(progress.id, associateIds);
+  }
+
+  async unassignPipelineStepAssociate(
+    customerId: string,
+    applicationId: string,
+    stepIndex: number,
+    associateId: string,
+  ) {
+    const progress = await this.pipelineStepAssignmentService.resolvePipelineProgress(
+      this.tid(customerId),
+      this.tid(applicationId),
+      stepIndex,
+    );
+    return this.pipelineStepAssignmentService.unassignAssociateFromStep(progress.id, associateId);
   }
 
   async patchPipelineStep(
@@ -65,7 +106,8 @@ export class CustomerApplicationWorkflowService {
   ) {
     const cid = this.tid(customerId);
     const aid = this.tid(applicationId);
-    await this.assertCanAccess(actor, cid);
+    await this.assertCanAccessApplication(actor, cid, aid);
+    await this.assertCanModifyPipelineStep(actor, aid, stepIndex);
     const app = await this.loadApplication(cid, aid, []);
     const row = await this.pipelineProgressRepository.findOne({
       where: { customerApplicationId: app.id, stepIndex },
@@ -75,7 +117,7 @@ export class CustomerApplicationWorkflowService {
     }
     row.completedAt = completed ? new Date() : null;
     await this.pipelineProgressRepository.save(row);
-    return this.buildWorkflowPayload(await this.loadApplication(cid, aid, [
+    return await this.buildWorkflowPayload(await this.loadApplication(cid, aid, [
       'pipelineProgress',
       'applicationDocuments',
       'applicationDocuments.requirement',
@@ -93,7 +135,7 @@ export class CustomerApplicationWorkflowService {
     const cid = this.tid(customerId);
     const aid = this.tid(applicationId);
     const did = this.tid(documentId);
-    await this.assertCanAccess(actor, cid);
+    await this.assertCanAccessApplication(actor, cid, aid);
     const doc = await this.loadDocumentRow(cid, aid, did, ['requirement']);
     if (doc.status === CustomerApplicationDocumentStatus.WAIVED) {
       throw new BadRequestException('Document was waived; re-open before upload.');
@@ -146,7 +188,7 @@ export class CustomerApplicationWorkflowService {
     const cid = this.tid(customerId);
     const aid = this.tid(applicationId);
     const did = this.tid(documentId);
-    await this.assertCanAccess(actor, cid);
+    await this.assertCanAccessApplication(actor, cid, aid);
     const doc = await this.loadDocumentRow(cid, aid, did, ['requirement']);
     const customer = await this.customerProfileRepository.findOne({ where: { id: cid } });
     if (!customer) {
@@ -198,7 +240,7 @@ export class CustomerApplicationWorkflowService {
     const cid = this.tid(customerId);
     const aid = this.tid(applicationId);
     const did = this.tid(documentId);
-    await this.assertCanAccess(actor, cid);
+    await this.assertCanAccessApplication(actor, cid, aid);
     const doc = await this.loadDocumentRow(cid, aid, did, []);
     if (dto.status === CustomerApplicationDocumentStatus.UPLOADED) {
       throw new BadRequestException('Use presign + complete flow to mark uploaded');
@@ -222,7 +264,7 @@ export class CustomerApplicationWorkflowService {
     const cid = this.tid(customerId);
     const aid = this.tid(applicationId);
     const did = this.tid(documentId);
-    await this.assertCanAccess(actor, cid);
+    await this.assertCanAccessApplication(actor, cid, aid);
     const doc = await this.loadDocumentRow(cid, aid, did, []);
     if (!doc.storageKey) {
       throw new BadRequestException('Document file is not uploaded yet');
@@ -230,15 +272,17 @@ export class CustomerApplicationWorkflowService {
     return this.s3StorageService.createPresignedGetUrl(doc.storageKey);
   }
 
-  buildWorkflowPayload(app: CustomerApplication) {
-    const steps = (app.pipelineProgress ?? [])
-      .slice()
-      .sort((a, b) => a.stepIndex - b.stepIndex)
-      .map((p) => ({
-        stepIndex: p.stepIndex,
-        title: p.title,
-        completedAt: p.completedAt ?? null,
-      }));
+  async buildWorkflowPayload(app: CustomerApplication) {
+    const progressRows = (app.pipelineProgress ?? []).slice().sort((a, b) => a.stepIndex - b.stepIndex);
+    const assigneesByProgressId = await this.pipelineStepAssignmentService.getAssigneesByProgressIds(
+      progressRows.map((p) => p.id),
+    );
+    const steps = progressRows.map((p) => ({
+      stepIndex: p.stepIndex,
+      title: p.title,
+      completedAt: p.completedAt ?? null,
+      assignedTo: assigneesByProgressId.get(p.id) ?? [],
+    }));
     const documents = (app.applicationDocuments ?? [])
       .slice()
       .sort((a, b) => a.requirement.sortOrder - b.requirement.sortOrder)
@@ -330,11 +374,60 @@ export class CustomerApplicationWorkflowService {
     if (!associateProfile) {
       throw new ForbiddenException('You do not have access to this customer');
     }
-    const link = await this.associateCustomerRepository.findOne({
-      where: { associateId: associateProfile.id, customerId },
-    });
-    if (!link) {
+    const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(
+      associateProfile.id,
+      customerId,
+    );
+    if (!allowed) {
       throw new ForbiddenException('You do not have access to this customer');
+    }
+  }
+
+  private async assertCanAccessApplication(
+    actor: JwtActor,
+    customerId: string,
+    applicationId: string,
+  ): Promise<void> {
+    await this.assertCanAccess(actor, customerId);
+    if (actor.role !== UserRole.ASSOCIATE) {
+      return;
+    }
+    const associateProfile = await this.associateProfileRepository.findOne({
+      where: { userId: actor.id },
+    });
+    if (!associateProfile) {
+      throw new ForbiddenException('You do not have access to this application');
+    }
+    const allowed = await this.pipelineStepAssignmentService.hasAccessToApplication(
+      associateProfile.id,
+      applicationId,
+    );
+    if (!allowed) {
+      throw new ForbiddenException('You do not have access to this application');
+    }
+  }
+
+  private async assertCanModifyPipelineStep(
+    actor: JwtActor,
+    applicationId: string,
+    stepIndex: number,
+  ): Promise<void> {
+    if (actor.role !== UserRole.ASSOCIATE) {
+      return;
+    }
+    const associateProfile = await this.associateProfileRepository.findOne({
+      where: { userId: actor.id },
+    });
+    if (!associateProfile) {
+      throw new ForbiddenException('You do not have access to this pipeline step');
+    }
+    const allowed = await this.pipelineStepAssignmentService.hasAccessToStep(
+      associateProfile.id,
+      applicationId,
+      stepIndex,
+    );
+    if (!allowed) {
+      throw new ForbiddenException('You are not assigned to this pipeline step');
     }
   }
 

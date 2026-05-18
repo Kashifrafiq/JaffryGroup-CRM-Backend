@@ -5,16 +5,12 @@ import { RemindersService } from './reminders.service';
 import { CustomerReminder } from './entities/customer-reminder.entity';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
-import { AssociateCustomer } from '../users/entities/associate-customer.entity';
+import { CustomersModule } from '../customers/customers.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      CustomerReminder,
-      CustomerProfile,
-      AssociateProfile,
-      AssociateCustomer,
-    ]),
+    CustomersModule,
+    TypeOrmModule.forFeature([CustomerReminder, CustomerProfile, AssociateProfile]),
   ],
   controllers: [RemindersController],
   providers: [RemindersService],

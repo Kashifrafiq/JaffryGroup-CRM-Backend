@@ -3,8 +3,8 @@ import { DataSource, Repository } from 'typeorm';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { User } from '../users/entities/user.entity';
 import { JwtActor } from './jwt-actor.type';
-import { AssociateCustomer } from '../users/entities/associate-customer.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
+import { PipelineStepAssignmentService } from './pipeline-step-assignment.service';
 import { CreateCustomerDto } from '../users/dto/create-customer.dto';
 import { CustomerApplication } from './entities/customer-application.entity';
 import { ApplicationTypesService } from '../applications/application-types.service';
@@ -21,8 +21,8 @@ import { CustomerInviteMailService } from './customer-invite-mail.service';
 export declare class CustomersService {
     private readonly customerRepository;
     private readonly applicationRepository;
-    private readonly associateCustomerRepository;
     private readonly associateProfileRepository;
+    private readonly pipelineStepAssignmentService;
     private readonly customerInviteRepository;
     private readonly userRepository;
     private readonly applicationTypesService;
@@ -32,7 +32,7 @@ export declare class CustomersService {
     private readonly configService;
     private readonly dataSource;
     private readonly logger;
-    constructor(customerRepository: Repository<CustomerProfile>, applicationRepository: Repository<CustomerApplication>, associateCustomerRepository: Repository<AssociateCustomer>, associateProfileRepository: Repository<AssociateProfile>, customerInviteRepository: Repository<CustomerInvite>, userRepository: Repository<User>, applicationTypesService: ApplicationTypesService, applicationWorkflowService: ApplicationWorkflowService, customerApplicationWorkflowService: CustomerApplicationWorkflowService, customerInviteMailService: CustomerInviteMailService, configService: ConfigService, dataSource: DataSource);
+    constructor(customerRepository: Repository<CustomerProfile>, applicationRepository: Repository<CustomerApplication>, associateProfileRepository: Repository<AssociateProfile>, pipelineStepAssignmentService: PipelineStepAssignmentService, customerInviteRepository: Repository<CustomerInvite>, userRepository: Repository<User>, applicationTypesService: ApplicationTypesService, applicationWorkflowService: ApplicationWorkflowService, customerApplicationWorkflowService: CustomerApplicationWorkflowService, customerInviteMailService: CustomerInviteMailService, configService: ConfigService, dataSource: DataSource);
     create(dto: CreateCustomerApiDto, createdBy: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>>;
     inviteCustomer(dto: InviteCustomerDto, actor: JwtActor): Promise<{
         inviteSent: true;
@@ -104,6 +104,7 @@ export declare class CustomersService {
     private getCustomerInviteExpiryDate;
     private resolveAssociateAssignmentOnCreate;
     private attachAssignedAssociates;
+    private uniqueAssignees;
     private resolveApplicationType;
     private resolveApplicationTypeForLegacy;
     private resolveTypeFromLegacyLabel;
