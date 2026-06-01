@@ -15,9 +15,12 @@ export declare class CustomersController {
     private actor;
     create(dto: CreateCustomerApiDto, req: RequestWithJwtUser): Promise<{
         id: string;
-        profilePhoto: string | undefined;
+        profilePhoto: string | null;
         name: string;
         email: string;
+        phone: string | null;
+        property: string | null;
+        address: string | null;
         applications: {
             applicationId: string;
             applicationType: {
@@ -55,9 +58,12 @@ export declare class CustomersController {
     }>;
     findAll(query: ListCustomersQueryDto, req: RequestWithJwtUser): Promise<{
         id: string;
-        profilePhoto: string | undefined;
+        profilePhoto: string | null;
         name: string;
         email: string;
+        phone: string | null;
+        property: string | null;
+        address: string | null;
         applications: {
             applicationId: string;
             applicationType: {
@@ -136,9 +142,12 @@ export declare class CustomersController {
     }>;
     findOne(customerId: string, req: RequestWithJwtUser): Promise<{
         id: string;
-        profilePhoto: string | undefined;
+        profilePhoto: string | null;
         name: string;
         email: string;
+        phone: string | null;
+        property: string | null;
+        address: string | null;
         applications: {
             applicationId: string;
             applicationType: {
@@ -171,9 +180,12 @@ export declare class CustomersController {
     }>;
     update(customerId: string, dto: UpdateCustomerDto, req: RequestWithJwtUser): Promise<{
         id: string;
-        profilePhoto: string | undefined;
+        profilePhoto: string | null;
         name: string;
         email: string;
+        phone: string | null;
+        property: string | null;
+        address: string | null;
         applications: {
             applicationId: string;
             applicationType: {
@@ -207,9 +219,12 @@ export declare class CustomersController {
     remove(customerId: string, req: RequestWithJwtUser): Promise<void>;
     addApplication(customerId: string, dto: CreateCustomerApplicationDto, req: RequestWithJwtUser): Promise<{
         id: string;
-        profilePhoto: string | undefined;
+        profilePhoto: string | null;
         name: string;
         email: string;
+        phone: string | null;
+        property: string | null;
+        address: string | null;
         applications: {
             applicationId: string;
             applicationType: {
@@ -242,9 +257,12 @@ export declare class CustomersController {
     }>;
     updateApplication(customerId: string, applicationId: string, dto: UpdateCustomerApplicationDto, req: RequestWithJwtUser): Promise<{
         id: string;
-        profilePhoto: string | undefined;
+        profilePhoto: string | null;
         name: string;
         email: string;
+        phone: string | null;
+        property: string | null;
+        address: string | null;
         applications: {
             applicationId: string;
             applicationType: {

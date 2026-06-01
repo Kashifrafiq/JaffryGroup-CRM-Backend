@@ -741,9 +741,12 @@ let CustomersService = CustomersService_1 = class CustomersService {
         }));
         return {
             id: customer.id,
-            profilePhoto: customer.profilePhoto,
+            profilePhoto: customer.profilePhoto ?? null,
             name: `${customer.firstName} ${customer.lastName}`.trim(),
             email: customer.email ?? '',
+            phone: customer.phoneNumber ?? null,
+            property: customer.property ?? null,
+            address: customer.address ?? null,
             applications,
         };
     }
