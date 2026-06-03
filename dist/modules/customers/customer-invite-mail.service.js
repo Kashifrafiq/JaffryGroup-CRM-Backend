@@ -56,17 +56,21 @@ let CustomerInviteMailService = CustomerInviteMailService_1 = class CustomerInvi
         const host = this.configService.get('SMTP_HOST')?.trim();
         const portRaw = this.configService.get('SMTP_PORT');
         const user = this.configService.get('SMTP_USER')?.trim();
-        const pass = this.configService.get('SMTP_PASS');
+        const pass = this.configService.get('SMTP_PASS')?.trim();
         if (!host || !portRaw || !user || !pass) {
             this.logger.warn('SMTP credentials are incomplete; customer invite emails cannot be sent.');
             return;
         }
+        this.logger.log(`SMTP configured: ${user}@${host}:${portRaw} (password length ${pass.length})`);
         const port = Number(portRaw);
+        const secureFlag = this.configService.get('SMTP_SECURE')?.trim().toLowerCase();
+        const secure = secureFlag === 'true' || secureFlag === '1' || secureFlag === 'yes' || port === 465;
         this.transporter = nodemailer.createTransport({
             host,
             port,
-            secure: port === 465,
+            secure,
             auth: { user, pass },
+            ...(port === 587 && !secure ? { requireTLS: true } : {}),
         });
     }
     async sendCustomerInvite(input) {
