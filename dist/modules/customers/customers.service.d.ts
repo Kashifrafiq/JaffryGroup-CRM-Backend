@@ -83,7 +83,10 @@ export declare class CustomersService {
                 itemLabel: string;
                 status: string;
                 uploaded: boolean;
+                uploadedByMe: boolean;
                 uploadedAt: Date | null;
+                canPreview: boolean;
+                originalFilename: string | null;
             }>;
         }>;
     }>;
@@ -108,6 +111,7 @@ export declare class CustomersService {
     private resolveApplicationType;
     private resolveApplicationTypeForLegacy;
     private resolveTypeFromLegacyLabel;
+    private uploaderRoleMapForDocuments;
     private splitName;
     private toCustomerSummary;
 }

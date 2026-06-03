@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import {
+  canCustomerPreviewDocument,
+  isUploadedByCustomerUser,
+} from './customer-document-visibility';
 import { CustomerApplication } from './entities/customer-application.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { PipelineStepAssignmentService } from './pipeline-step-assignment.service';
@@ -34,6 +39,8 @@ export class CustomerApplicationWorkflowService {
     private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
     @InjectRepository(CustomerProfile)
     private readonly customerProfileRepository: Repository<CustomerProfile>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly s3StorageService: S3StorageService,
   ) {}
 
@@ -137,6 +144,9 @@ export class CustomerApplicationWorkflowService {
     const did = this.tid(documentId);
     await this.assertCanAccessApplication(actor, cid, aid);
     const doc = await this.loadDocumentRow(cid, aid, did, ['requirement']);
+    if (actor.role === UserRole.CUSTOMER) {
+      await this.assertCustomerCanUploadDocument(doc, actor.id);
+    }
     if (doc.status === CustomerApplicationDocumentStatus.WAIVED) {
       throw new BadRequestException('Document was waived; re-open before upload.');
     }
@@ -156,6 +166,12 @@ export class CustomerApplicationWorkflowService {
     doc.bucket = signed.bucket;
     doc.mimeType = dto.contentType;
     doc.originalFilename = dto.filename;
+    if (actor.role !== UserRole.CUSTOMER) {
+      doc.uploadedAt = null;
+      doc.uploadedByUserId = null;
+      doc.sizeBytes = null;
+      doc.status = CustomerApplicationDocumentStatus.PENDING;
+    }
     await this.applicationDocumentRepository.save(doc);
     return {
       uploadUrl: signed.uploadUrl,
@@ -190,6 +206,9 @@ export class CustomerApplicationWorkflowService {
     const did = this.tid(documentId);
     await this.assertCanAccessApplication(actor, cid, aid);
     const doc = await this.loadDocumentRow(cid, aid, did, ['requirement']);
+    if (actor.role === UserRole.CUSTOMER) {
+      await this.assertCustomerCanUploadDocument(doc, actor.id);
+    }
     const customer = await this.customerProfileRepository.findOne({ where: { id: cid } });
     if (!customer) {
       throw new NotFoundException(`Customer #${cid} not found`);
@@ -214,6 +233,9 @@ export class CustomerApplicationWorkflowService {
     doc.uploadedAt = new Date();
     doc.uploadedByUserId = actor.id;
     await this.applicationDocumentRepository.save(doc);
+    if (actor.role === UserRole.CUSTOMER) {
+      return this.getCustomerWorkflow(cid, aid, actor);
+    }
     return this.getWorkflow(cid, aid, actor);
   }
 
@@ -272,7 +294,52 @@ export class CustomerApplicationWorkflowService {
     return this.s3StorageService.createPresignedGetUrl(doc.storageKey);
   }
 
-  async buildWorkflowPayload(app: CustomerApplication) {
+  async getDocumentReadUrlForCustomerUser(
+    applicationId: string,
+    documentId: string,
+    actor: JwtActor,
+  ) {
+    if (actor.role !== UserRole.CUSTOMER) {
+      throw new ForbiddenException('Only customer can use this endpoint');
+    }
+    const customerId = await this.customerIdForUser(actor.id);
+    const cid = this.tid(customerId);
+    const aid = this.tid(applicationId);
+    const did = this.tid(documentId);
+    await this.assertCanAccessApplication(actor, cid, aid);
+    const doc = await this.loadDocumentRow(cid, aid, did, []);
+    await this.assertCustomerCanPreviewDocument(doc, actor.id);
+    if (!doc.storageKey) {
+      throw new BadRequestException('Document file is not uploaded yet');
+    }
+    return this.s3StorageService.createPresignedGetUrl(doc.storageKey);
+  }
+
+  /** Customer portal: pending requirements + only files the customer uploaded. */
+  async getCustomerWorkflow(customerId: string, applicationId: string, actor: JwtActor) {
+    const cid = this.tid(customerId);
+    const aid = this.tid(applicationId);
+    if (actor.role !== UserRole.CUSTOMER) {
+      throw new ForbiddenException('Only customer can use this workflow view');
+    }
+    await this.assertCanAccessApplication(actor, cid, aid);
+    const app = await this.loadApplication(cid, aid, [
+      'pipelineProgress',
+      'applicationDocuments',
+      'applicationDocuments.requirement',
+      'applicationType',
+    ]);
+    const uploaderRoleByUserId = await this.uploaderRoleMapForDocuments(
+      app.applicationDocuments ?? [],
+    );
+    return this.buildWorkflowPayload(app, actor.id, uploaderRoleByUserId);
+  }
+
+  async buildWorkflowPayload(
+    app: CustomerApplication,
+    customerUserId?: string,
+    uploaderRoleByUserId: Map<string, UserRole> = new Map(),
+  ) {
     const progressRows = (app.pipelineProgress ?? []).slice().sort((a, b) => a.stepIndex - b.stepIndex);
     const assigneesByProgressId = await this.pipelineStepAssignmentService.getAssigneesByProgressIds(
       progressRows.map((p) => p.id),
@@ -286,22 +353,36 @@ export class CustomerApplicationWorkflowService {
     const documents = (app.applicationDocuments ?? [])
       .slice()
       .sort((a, b) => a.requirement.sortOrder - b.requirement.sortOrder)
-      .map((d) => ({
+      .map((d) => {
+      const uploadedByCustomer = customerUserId
+        ? isUploadedByCustomerUser(d, customerUserId, uploaderRoleByUserId)
+        : undefined;
+      const row: Record<string, unknown> = {
         id: d.id,
         status: d.status,
         requirementKey: d.requirement.requirementKey,
         sectionTitle: d.requirement.sectionTitle,
         itemLabel: d.requirement.itemLabel,
         sortOrder: d.requirement.sortOrder,
-        storageKey: d.storageKey ?? null,
-        bucket: d.bucket ?? null,
         originalFilename: d.originalFilename ?? null,
         mimeType: d.mimeType ?? null,
         sizeBytes: d.sizeBytes ?? null,
         uploadedAt: d.uploadedAt ?? null,
-        uploadedByUserId: d.uploadedByUserId ?? null,
-        notes: d.notes ?? null,
-      }));
+        canPreview: customerUserId
+          ? canCustomerPreviewDocument(d, customerUserId, uploaderRoleByUserId)
+          : true,
+      };
+      if (!customerUserId) {
+        row.storageKey = d.storageKey ?? null;
+        row.bucket = d.bucket ?? null;
+        row.uploadedByUserId = d.uploadedByUserId ?? null;
+        row.notes = d.notes ?? null;
+      }
+      if (uploadedByCustomer !== undefined) {
+        row.uploadedByMe = uploadedByCustomer;
+      }
+      return row;
+    });
     return {
       applicationId: app.id,
       applicationType: {
@@ -428,6 +509,55 @@ export class CustomerApplicationWorkflowService {
     );
     if (!allowed) {
       throw new ForbiddenException('You are not assigned to this pipeline step');
+    }
+  }
+
+  private async uploaderRoleMapForDocuments(
+    documents: Array<{ uploadedByUserId?: string | null }>,
+  ): Promise<Map<string, UserRole>> {
+    const uploaderIds = [
+      ...new Set(
+        documents
+          .map((d) => d.uploadedByUserId?.trim())
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    if (!uploaderIds.length) {
+      return new Map();
+    }
+    const users = await this.userRepository.find({
+      where: { id: In(uploaderIds) },
+      select: ['id', 'role'],
+    });
+    return new Map(users.map((u) => [u.id, u.role]));
+  }
+
+  private async assertCustomerCanUploadDocument(
+    doc: { uploadedAt?: Date | null; uploadedByUserId?: string | null },
+    customerUserId: string,
+  ): Promise<void> {
+    if (!doc.uploadedAt) {
+      return;
+    }
+    const roleMap = await this.uploaderRoleMapForDocuments([doc]);
+    if (!isUploadedByCustomerUser(doc, customerUserId, roleMap)) {
+      throw new ForbiddenException(
+        'This document was uploaded by your team. You cannot replace or view it here.',
+      );
+    }
+  }
+
+  private async assertCustomerCanPreviewDocument(
+    doc: {
+      uploadedAt?: Date | null;
+      uploadedByUserId?: string | null;
+      storageKey?: string | null;
+    },
+    customerUserId: string,
+  ): Promise<void> {
+    const roleMap = await this.uploaderRoleMapForDocuments([doc]);
+    if (!canCustomerPreviewDocument(doc, customerUserId, roleMap)) {
+      throw new ForbiddenException('You can only preview documents you uploaded');
     }
   }
 

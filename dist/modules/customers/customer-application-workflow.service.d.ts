@@ -1,12 +1,13 @@
 import { Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 import { CustomerApplication } from './entities/customer-application.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { PipelineStepAssignmentService } from './pipeline-step-assignment.service';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
+import { UserRole } from '../users/entities/user-role.enum';
 import { JwtActor } from './jwt-actor.type';
 import { CustomerApplicationPipelineProgress } from '../applications/entities/customer-application-pipeline-progress.entity';
 import { CustomerApplicationDocument } from '../applications/entities/customer-application-document.entity';
-import { CustomerApplicationDocumentStatus } from '../applications/entities/customer-application-document-status.enum';
 import { S3StorageService } from '../applications/s3-storage.service';
 import { PresignDocumentUploadDto } from './dto/presign-document-upload.dto';
 import { CompleteDocumentUploadDto } from './dto/complete-document-upload.dto';
@@ -18,8 +19,9 @@ export declare class CustomerApplicationWorkflowService {
     private readonly associateProfileRepository;
     private readonly pipelineStepAssignmentService;
     private readonly customerProfileRepository;
+    private readonly userRepository;
     private readonly s3StorageService;
-    constructor(applicationRepository: Repository<CustomerApplication>, pipelineProgressRepository: Repository<CustomerApplicationPipelineProgress>, applicationDocumentRepository: Repository<CustomerApplicationDocument>, associateProfileRepository: Repository<AssociateProfile>, pipelineStepAssignmentService: PipelineStepAssignmentService, customerProfileRepository: Repository<CustomerProfile>, s3StorageService: S3StorageService);
+    constructor(applicationRepository: Repository<CustomerApplication>, pipelineProgressRepository: Repository<CustomerApplicationPipelineProgress>, applicationDocumentRepository: Repository<CustomerApplicationDocument>, associateProfileRepository: Repository<AssociateProfile>, pipelineStepAssignmentService: PipelineStepAssignmentService, customerProfileRepository: Repository<CustomerProfile>, userRepository: Repository<User>, s3StorageService: S3StorageService);
     private tid;
     getWorkflow(customerId: string, applicationId: string, actor: JwtActor): Promise<{
         applicationId: string;
@@ -34,22 +36,7 @@ export declare class CustomerApplicationWorkflowService {
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
-        documents: {
-            id: string;
-            status: CustomerApplicationDocumentStatus;
-            requirementKey: string;
-            sectionTitle: string;
-            itemLabel: string;
-            sortOrder: number;
-            storageKey: string | null;
-            bucket: string | null;
-            originalFilename: string | null;
-            mimeType: string | null;
-            sizeBytes: string | null;
-            uploadedAt: Date | null;
-            uploadedByUserId: string | null;
-            notes: string | null;
-        }[];
+        documents: Record<string, unknown>[];
     }>;
     assignPipelineStepAssociates(customerId: string, applicationId: string, stepIndex: number, associateIds: string[]): Promise<{
         pipelineProgressId: string;
@@ -79,22 +66,7 @@ export declare class CustomerApplicationWorkflowService {
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
-        documents: {
-            id: string;
-            status: CustomerApplicationDocumentStatus;
-            requirementKey: string;
-            sectionTitle: string;
-            itemLabel: string;
-            sortOrder: number;
-            storageKey: string | null;
-            bucket: string | null;
-            originalFilename: string | null;
-            mimeType: string | null;
-            sizeBytes: string | null;
-            uploadedAt: Date | null;
-            uploadedByUserId: string | null;
-            notes: string | null;
-        }[];
+        documents: Record<string, unknown>[];
     }>;
     presignDocumentUpload(customerId: string, applicationId: string, documentId: string, dto: PresignDocumentUploadDto, actor: JwtActor): Promise<{
         uploadUrl: string;
@@ -121,22 +93,7 @@ export declare class CustomerApplicationWorkflowService {
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
-        documents: {
-            id: string;
-            status: CustomerApplicationDocumentStatus;
-            requirementKey: string;
-            sectionTitle: string;
-            itemLabel: string;
-            sortOrder: number;
-            storageKey: string | null;
-            bucket: string | null;
-            originalFilename: string | null;
-            mimeType: string | null;
-            sizeBytes: string | null;
-            uploadedAt: Date | null;
-            uploadedByUserId: string | null;
-            notes: string | null;
-        }[];
+        documents: Record<string, unknown>[];
     }>;
     completeDocumentUploadForCustomerUser(applicationId: string, documentId: string, dto: CompleteDocumentUploadDto, actor: JwtActor): Promise<{
         applicationId: string;
@@ -151,22 +108,7 @@ export declare class CustomerApplicationWorkflowService {
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
-        documents: {
-            id: string;
-            status: CustomerApplicationDocumentStatus;
-            requirementKey: string;
-            sectionTitle: string;
-            itemLabel: string;
-            sortOrder: number;
-            storageKey: string | null;
-            bucket: string | null;
-            originalFilename: string | null;
-            mimeType: string | null;
-            sizeBytes: string | null;
-            uploadedAt: Date | null;
-            uploadedByUserId: string | null;
-            notes: string | null;
-        }[];
+        documents: Record<string, unknown>[];
     }>;
     patchDocument(customerId: string, applicationId: string, documentId: string, dto: PatchApplicationDocumentDto, actor: JwtActor): Promise<{
         applicationId: string;
@@ -181,22 +123,7 @@ export declare class CustomerApplicationWorkflowService {
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
-        documents: {
-            id: string;
-            status: CustomerApplicationDocumentStatus;
-            requirementKey: string;
-            sectionTitle: string;
-            itemLabel: string;
-            sortOrder: number;
-            storageKey: string | null;
-            bucket: string | null;
-            originalFilename: string | null;
-            mimeType: string | null;
-            sizeBytes: string | null;
-            uploadedAt: Date | null;
-            uploadedByUserId: string | null;
-            notes: string | null;
-        }[];
+        documents: Record<string, unknown>[];
     }>;
     getDocumentReadUrl(customerId: string, applicationId: string, documentId: string, actor: JwtActor): Promise<{
         readUrl: string;
@@ -204,7 +131,13 @@ export declare class CustomerApplicationWorkflowService {
         key: string;
         expiresIn: number;
     }>;
-    buildWorkflowPayload(app: CustomerApplication): Promise<{
+    getDocumentReadUrlForCustomerUser(applicationId: string, documentId: string, actor: JwtActor): Promise<{
+        readUrl: string;
+        bucket: string;
+        key: string;
+        expiresIn: number;
+    }>;
+    getCustomerWorkflow(customerId: string, applicationId: string, actor: JwtActor): Promise<{
         applicationId: string;
         applicationType: {
             id: string;
@@ -217,27 +150,30 @@ export declare class CustomerApplicationWorkflowService {
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
-        documents: {
+        documents: Record<string, unknown>[];
+    }>;
+    buildWorkflowPayload(app: CustomerApplication, customerUserId?: string, uploaderRoleByUserId?: Map<string, UserRole>): Promise<{
+        applicationId: string;
+        applicationType: {
             id: string;
-            status: CustomerApplicationDocumentStatus;
-            requirementKey: string;
-            sectionTitle: string;
-            itemLabel: string;
-            sortOrder: number;
-            storageKey: string | null;
-            bucket: string | null;
-            originalFilename: string | null;
-            mimeType: string | null;
-            sizeBytes: string | null;
-            uploadedAt: Date | null;
-            uploadedByUserId: string | null;
-            notes: string | null;
+            code: string;
+            name: string;
+        };
+        pipelineSteps: {
+            stepIndex: number;
+            title: string;
+            completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
+        documents: Record<string, unknown>[];
     }>;
     private loadApplication;
     private loadDocumentRow;
     private assertCanAccess;
     private assertCanAccessApplication;
     private assertCanModifyPipelineStep;
+    private uploaderRoleMapForDocuments;
+    private assertCustomerCanUploadDocument;
+    private assertCustomerCanPreviewDocument;
     private customerIdForUser;
 }

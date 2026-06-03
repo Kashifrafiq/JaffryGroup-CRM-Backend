@@ -136,7 +136,10 @@ export declare class CustomersController {
                 itemLabel: string;
                 status: string;
                 uploaded: boolean;
+                uploadedByMe: boolean;
                 uploadedAt: Date | null;
+                canPreview: boolean;
+                originalFilename: string | null;
             }>;
         }>;
     }>;

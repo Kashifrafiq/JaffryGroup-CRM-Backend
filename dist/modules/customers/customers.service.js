@@ -33,6 +33,7 @@ const customer_application_document_entity_1 = require("../applications/entities
 const customer_application_workflow_service_1 = require("./customer-application-workflow.service");
 const customer_invite_entity_1 = require("./entities/customer-invite.entity");
 const customer_invite_mail_service_1 = require("./customer-invite-mail.service");
+const customer_document_visibility_1 = require("./customer-document-visibility");
 let CustomersService = CustomersService_1 = class CustomersService {
     customerRepository;
     applicationRepository;
@@ -266,6 +267,7 @@ let CustomersService = CustomersService_1 = class CustomersService {
         if (!customer) {
             throw new common_1.NotFoundException('Customer profile not found for current user');
         }
+        const uploaderRoleByUserId = await this.uploaderRoleMapForDocuments((customer.applications ?? []).flatMap((app) => app.applicationDocuments ?? []));
         const applications = (customer.applications ?? [])
             .slice()
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -273,18 +275,25 @@ let CustomersService = CustomersService_1 = class CustomersService {
             const documents = (app.applicationDocuments ?? [])
                 .slice()
                 .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
-                .map((doc) => ({
-                id: doc.id,
-                requirementKey: doc.requirement.requirementKey,
-                sectionTitle: doc.requirement.sectionTitle,
-                itemLabel: doc.requirement.itemLabel,
-                status: doc.status,
-                uploaded: !!doc.uploadedAt,
-                uploadedAt: doc.uploadedAt ?? null,
-            }));
+                .map((doc) => {
+                const uploadedByMe = (0, customer_document_visibility_1.isUploadedByCustomerUser)(doc, userId, uploaderRoleByUserId);
+                const uploaded = (0, customer_document_visibility_1.isDocumentFileUploaded)(doc);
+                return {
+                    id: doc.id,
+                    requirementKey: doc.requirement.requirementKey,
+                    sectionTitle: doc.requirement.sectionTitle,
+                    itemLabel: doc.requirement.itemLabel,
+                    status: doc.status,
+                    uploaded,
+                    uploadedByMe,
+                    uploadedAt: uploaded ? doc.uploadedAt ?? null : null,
+                    canPreview: (0, customer_document_visibility_1.canCustomerPreviewDocument)(doc, userId, uploaderRoleByUserId),
+                    originalFilename: uploadedByMe ? doc.originalFilename ?? null : null,
+                };
+            });
             const uploaded = documents.filter((d) => d.uploaded).length;
             const total = documents.length;
-            const remaining = total - uploaded;
+            const remaining = documents.filter((d) => !d.uploaded).length;
             return {
                 applicationId: app.id,
                 applicationType: app.applicationType
@@ -681,6 +690,21 @@ let CustomersService = CustomersService_1 = class CustomersService {
             return byName;
         }
         throw new common_1.BadRequestException(`Unknown application type "${trimmed}". Use GET /application-types and send applicationTypeId or applicationTypeCode.`);
+    }
+    async uploaderRoleMapForDocuments(documents) {
+        const uploaderIds = [
+            ...new Set(documents
+                .map((d) => d.uploadedByUserId?.trim())
+                .filter((id) => !!id)),
+        ];
+        if (!uploaderIds.length) {
+            return new Map();
+        }
+        const users = await this.userRepository.find({
+            where: { id: (0, typeorm_2.In)(uploaderIds) },
+            select: ['id', 'role'],
+        });
+        return new Map(users.map((u) => [u.id, u.role]));
     }
     splitName(name) {
         const trimmed = name.trim();

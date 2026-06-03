@@ -54,6 +54,9 @@ let CustomerApplicationWorkflowController = class CustomerApplicationWorkflowCon
     presignUpload(customerId, applicationId, documentId, dto, req) {
         return this.workflowService.presignDocumentUpload(customerId, applicationId, documentId, dto, this.actor(req));
     }
+    getDocumentReadUrlForMe(applicationId, documentId, req) {
+        return this.workflowService.getDocumentReadUrlForCustomerUser(applicationId, documentId, this.actor(req));
+    }
     completeUploadForMe(applicationId, documentId, dto, req) {
         return this.workflowService.completeDocumentUploadForCustomerUser(applicationId, documentId, dto, this.actor(req));
     }
@@ -146,6 +149,16 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, presign_document_upload_dto_1.PresignDocumentUploadDto, Object]),
     __metadata("design:returntype", void 0)
 ], CustomerApplicationWorkflowController.prototype, "presignUpload", null);
+__decorate([
+    (0, common_1.Get)('me/applications/:applicationId/documents/:documentId/read-url'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),
+    __param(0, (0, common_1.Param)('applicationId')),
+    __param(1, (0, common_1.Param)('documentId')),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], CustomerApplicationWorkflowController.prototype, "getDocumentReadUrlForMe", null);
 __decorate([
     (0, common_1.Post)('me/applications/:applicationId/documents/:documentId/complete'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),

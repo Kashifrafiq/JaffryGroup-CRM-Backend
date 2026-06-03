@@ -148,6 +148,20 @@ export class CustomerApplicationWorkflowController {
     );
   }
 
+  @Get('me/applications/:applicationId/documents/:documentId/read-url')
+  @Roles(UserRole.CUSTOMER)
+  getDocumentReadUrlForMe(
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.workflowService.getDocumentReadUrlForCustomerUser(
+      applicationId,
+      documentId,
+      this.actor(req),
+    );
+  }
+
   @Post('me/applications/:applicationId/documents/:documentId/complete')
   @Roles(UserRole.CUSTOMER)
   completeUploadForMe(

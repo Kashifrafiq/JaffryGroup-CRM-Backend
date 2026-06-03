@@ -33,6 +33,11 @@ import { UpdateCustomerApplicationDto } from './dto/update-customer-application.
 import { InviteCustomerDto } from './dto/invite-customer.dto';
 import { CustomerInvite } from './entities/customer-invite.entity';
 import { CustomerInviteMailService } from './customer-invite-mail.service';
+import {
+  canCustomerPreviewDocument,
+  isDocumentFileUploaded,
+  isUploadedByCustomerUser,
+} from './customer-document-visibility';
 
 @Injectable()
 export class CustomersService {
@@ -337,7 +342,10 @@ export class CustomersService {
         itemLabel: string;
         status: string;
         uploaded: boolean;
+        uploadedByMe: boolean;
         uploadedAt: Date | null;
+        canPreview: boolean;
+        originalFilename: string | null;
       }>;
     }>;
   }> {
@@ -354,6 +362,10 @@ export class CustomersService {
       throw new NotFoundException('Customer profile not found for current user');
     }
 
+    const uploaderRoleByUserId = await this.uploaderRoleMapForDocuments(
+      (customer.applications ?? []).flatMap((app) => app.applicationDocuments ?? []),
+    );
+
     const applications = (customer.applications ?? [])
       .slice()
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -361,19 +373,26 @@ export class CustomersService {
         const documents = (app.applicationDocuments ?? [])
           .slice()
           .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
-          .map((doc) => ({
-            id: doc.id,
-            requirementKey: doc.requirement.requirementKey,
-            sectionTitle: doc.requirement.sectionTitle,
-            itemLabel: doc.requirement.itemLabel,
-            status: doc.status,
-            uploaded: !!doc.uploadedAt,
-            uploadedAt: doc.uploadedAt ?? null,
-          }));
+          .map((doc) => {
+            const uploadedByMe = isUploadedByCustomerUser(doc, userId, uploaderRoleByUserId);
+            const uploaded = isDocumentFileUploaded(doc);
+            return {
+              id: doc.id,
+              requirementKey: doc.requirement.requirementKey,
+              sectionTitle: doc.requirement.sectionTitle,
+              itemLabel: doc.requirement.itemLabel,
+              status: doc.status,
+              uploaded,
+              uploadedByMe,
+              uploadedAt: uploaded ? doc.uploadedAt ?? null : null,
+              canPreview: canCustomerPreviewDocument(doc, userId, uploaderRoleByUserId),
+              originalFilename: uploadedByMe ? doc.originalFilename ?? null : null,
+            };
+          });
 
         const uploaded = documents.filter((d) => d.uploaded).length;
         const total = documents.length;
-        const remaining = total - uploaded;
+        const remaining = documents.filter((d) => !d.uploaded).length;
 
         return {
           applicationId: app.id,
@@ -873,6 +892,26 @@ export class CustomersService {
     throw new BadRequestException(
       `Unknown application type "${trimmed}". Use GET /application-types and send applicationTypeId or applicationTypeCode.`,
     );
+  }
+
+  private async uploaderRoleMapForDocuments(
+    documents: Array<{ uploadedByUserId?: string | null }>,
+  ): Promise<Map<string, UserRole>> {
+    const uploaderIds = [
+      ...new Set(
+        documents
+          .map((d) => d.uploadedByUserId?.trim())
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    if (!uploaderIds.length) {
+      return new Map();
+    }
+    const users = await this.userRepository.find({
+      where: { id: In(uploaderIds) },
+      select: ['id', 'role'],
+    });
+    return new Map(users.map((u) => [u.id, u.role]));
   }
 
   private splitName(name: string): { firstName: string; lastName: string } {
