@@ -1,23 +1,20 @@
-import { Injectable, Logger, NotFoundException, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { AssociatePipelineStep } from '../users/entities/associate-pipeline-step.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { CustomerApplicationPipelineProgress } from '../applications/entities/customer-application-pipeline-progress.entity';
 import { CustomerApplication } from './entities/customer-application.entity';
-import { AssociateCustomer } from '../users/entities/associate-customer.entity';
 
 export type PipelineStepAssignee = { id: string; name: string };
 
 @Injectable()
-export class PipelineStepAssignmentService implements OnApplicationBootstrap {
+export class PipelineStepAssignmentService {
   private readonly logger = new Logger(PipelineStepAssignmentService.name);
 
   constructor(
     @InjectRepository(AssociatePipelineStep)
     private readonly assignmentRepository: Repository<AssociatePipelineStep>,
-    @InjectRepository(AssociateCustomer)
-    private readonly legacyCustomerAssignmentRepository: Repository<AssociateCustomer>,
     @InjectRepository(AssociateProfile)
     private readonly associateProfileRepository: Repository<AssociateProfile>,
     @InjectRepository(CustomerApplicationPipelineProgress)
@@ -25,26 +22,6 @@ export class PipelineStepAssignmentService implements OnApplicationBootstrap {
     @InjectRepository(CustomerApplication)
     private readonly applicationRepository: Repository<CustomerApplication>,
   ) {}
-
-  async onApplicationBootstrap(): Promise<void> {
-    await this.migrateLegacyCustomerAssignments();
-  }
-
-  /** Copies whole-customer `associate_customers` links into per-step assignments. */
-  async migrateLegacyCustomerAssignments(): Promise<void> {
-    const legacyLinks = await this.legacyCustomerAssignmentRepository.find();
-    if (!legacyLinks.length) {
-      return;
-    }
-
-    let migrated = 0;
-    for (const link of legacyLinks) {
-      migrated += await this.assignAllStepsForCustomerToAssociate(link.customerId, link.associateId);
-    }
-    if (migrated > 0) {
-      this.logger.log(`Migrated ${migrated} pipeline step assignment(s) from legacy customer links`);
-    }
-  }
 
   async resolvePipelineProgress(
     customerId: string,
@@ -208,6 +185,27 @@ export class PipelineStepAssignmentService implements OnApplicationBootstrap {
       .andWhere('pp.stepIndex = :stepIndex', { stepIndex })
       .getCount();
     return count > 0;
+  }
+
+  async getAssignedPipelineProgressIdsForAssociate(
+    associateId: string,
+    customerId: string,
+    applicationId?: string,
+  ): Promise<string[]> {
+    const qb = this.assignmentRepository
+      .createQueryBuilder('aps')
+      .innerJoin('aps.pipelineProgress', 'pp')
+      .innerJoin('pp.customerApplication', 'app')
+      .where('aps.associateId = :associateId', { associateId })
+      .andWhere('app.customerId = :customerId', { customerId })
+      .select('pp.id', 'pipelineProgressId');
+
+    if (applicationId?.trim()) {
+      qb.andWhere('app.id = :applicationId', { applicationId: applicationId.trim() });
+    }
+
+    const rows = await qb.getRawMany<{ pipelineProgressId: string }>();
+    return rows.map((r) => r.pipelineProgressId);
   }
 
   async getAssigneesByProgressIds(

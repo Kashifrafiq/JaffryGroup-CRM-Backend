@@ -11,7 +11,9 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateCustomerApiDto = void 0;
 const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
 const customer_application_status_enum_1 = require("../entities/customer-application-status.enum");
+const document_assignment_on_create_dto_1 = require("./document-assignment-on-create.dto");
 class CreateCustomerApiDto {
     name;
     email;
@@ -19,11 +21,13 @@ class CreateCustomerApiDto {
     property;
     applicationTypeId;
     applicationTypeCode;
+    applicationTypeIds;
+    applicationTypeCodes;
     status;
-    pipeline;
     address;
     profilePhoto;
     associateId;
+    documentAssignments;
 }
 exports.CreateCustomerApiDto = CreateCustomerApiDto;
 __decorate([
@@ -60,14 +64,22 @@ __decorate([
 ], CreateCustomerApiDto.prototype, "applicationTypeCode", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsUUID)('4', { each: true }),
+    __metadata("design:type", Array)
+], CreateCustomerApiDto.prototype, "applicationTypeIds", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    (0, class_validator_1.MaxLength)(64, { each: true }),
+    __metadata("design:type", Array)
+], CreateCustomerApiDto.prototype, "applicationTypeCodes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEnum)(customer_application_status_enum_1.CustomerApplicationStatus),
     __metadata("design:type", String)
 ], CreateCustomerApiDto.prototype, "status", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsObject)(),
-    __metadata("design:type", Object)
-], CreateCustomerApiDto.prototype, "pipeline", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -83,4 +95,11 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], CreateCustomerApiDto.prototype, "associateId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => document_assignment_on_create_dto_1.DocumentAssignmentOnCreateDto),
+    __metadata("design:type", Array)
+], CreateCustomerApiDto.prototype, "documentAssignments", void 0);
 //# sourceMappingURL=create-customer-api.dto.js.map

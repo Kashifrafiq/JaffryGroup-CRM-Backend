@@ -6,12 +6,6 @@ export declare class User {
     id: string;
     email: string;
     password: string;
-    firstName?: string;
-    lastName?: string;
-    phoneNumber?: string;
-    address?: string;
-    dateOfBirth?: Date;
-    profilePhoto?: string;
     role: UserRole;
     isActive: boolean;
     adminProfile?: AdminProfile;

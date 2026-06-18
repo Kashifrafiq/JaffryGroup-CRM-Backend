@@ -3,5 +3,4 @@ export declare class CreateCustomerApplicationDto {
     applicationTypeId?: string;
     applicationTypeCode?: string;
     status?: CustomerApplicationStatus;
-    pipeline?: Record<string, unknown>;
 }

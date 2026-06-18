@@ -9,6 +9,14 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CustomersService } from '../customers/customers.service';
 import { PipelineStepAssignmentService } from '../customers/pipeline-step-assignment.service';
+import { DocumentAssignmentService } from '../customers/document-assignment.service';
+type CustomerApplicationSummary = {
+    applicationId: string;
+    applicationType: {
+        id: string;
+        name: string;
+    } | null;
+};
 type UserView = {
     id: string;
     email: string;
@@ -19,7 +27,7 @@ type UserView = {
     name: string;
     phoneNumber?: string;
     property?: string;
-    applicationType?: string;
+    applications?: CustomerApplicationSummary[];
     address?: string;
     dateOfBirth?: Date;
     profilePhoto?: string;
@@ -35,7 +43,8 @@ export declare class UsersService {
     private readonly customerProfileRepository;
     private readonly customersService;
     private readonly pipelineStepAssignmentService;
-    constructor(userRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>, customersService: CustomersService, pipelineStepAssignmentService: PipelineStepAssignmentService);
+    private readonly documentAssignmentService;
+    constructor(userRepository: Repository<User>, adminProfileRepository: Repository<AdminProfile>, associateProfileRepository: Repository<AssociateProfile>, customerProfileRepository: Repository<CustomerProfile>, customersService: CustomersService, pipelineStepAssignmentService: PipelineStepAssignmentService, documentAssignmentService: DocumentAssignmentService);
     create(createUserDto: CreateUserDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<UserView>;
     createCustomer(createCustomerDto: CreateCustomerDto, createdBy?: Pick<User, 'id' | 'role'>): Promise<CustomerProfile>;
     findAll(): Promise<UserView[]>;
@@ -61,6 +70,7 @@ export declare class UsersService {
     private getProfileFromUser;
     private createProfile;
     private saveProfile;
+    private toCustomerApplications;
     private toStandaloneCustomerView;
     private toUserView;
     private splitName;

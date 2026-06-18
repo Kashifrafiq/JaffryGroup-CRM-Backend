@@ -21,36 +21,17 @@ const associate_pipeline_step_entity_1 = require("../users/entities/associate-pi
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const customer_application_pipeline_progress_entity_1 = require("../applications/entities/customer-application-pipeline-progress.entity");
 const customer_application_entity_1 = require("./entities/customer-application.entity");
-const associate_customer_entity_1 = require("../users/entities/associate-customer.entity");
 let PipelineStepAssignmentService = PipelineStepAssignmentService_1 = class PipelineStepAssignmentService {
     assignmentRepository;
-    legacyCustomerAssignmentRepository;
     associateProfileRepository;
     pipelineProgressRepository;
     applicationRepository;
     logger = new common_1.Logger(PipelineStepAssignmentService_1.name);
-    constructor(assignmentRepository, legacyCustomerAssignmentRepository, associateProfileRepository, pipelineProgressRepository, applicationRepository) {
+    constructor(assignmentRepository, associateProfileRepository, pipelineProgressRepository, applicationRepository) {
         this.assignmentRepository = assignmentRepository;
-        this.legacyCustomerAssignmentRepository = legacyCustomerAssignmentRepository;
         this.associateProfileRepository = associateProfileRepository;
         this.pipelineProgressRepository = pipelineProgressRepository;
         this.applicationRepository = applicationRepository;
-    }
-    async onApplicationBootstrap() {
-        await this.migrateLegacyCustomerAssignments();
-    }
-    async migrateLegacyCustomerAssignments() {
-        const legacyLinks = await this.legacyCustomerAssignmentRepository.find();
-        if (!legacyLinks.length) {
-            return;
-        }
-        let migrated = 0;
-        for (const link of legacyLinks) {
-            migrated += await this.assignAllStepsForCustomerToAssociate(link.customerId, link.associateId);
-        }
-        if (migrated > 0) {
-            this.logger.log(`Migrated ${migrated} pipeline step assignment(s) from legacy customer links`);
-        }
     }
     async resolvePipelineProgress(customerId, applicationId, stepIndex) {
         const app = await this.applicationRepository.findOne({
@@ -174,6 +155,20 @@ let PipelineStepAssignmentService = PipelineStepAssignmentService_1 = class Pipe
             .getCount();
         return count > 0;
     }
+    async getAssignedPipelineProgressIdsForAssociate(associateId, customerId, applicationId) {
+        const qb = this.assignmentRepository
+            .createQueryBuilder('aps')
+            .innerJoin('aps.pipelineProgress', 'pp')
+            .innerJoin('pp.customerApplication', 'app')
+            .where('aps.associateId = :associateId', { associateId })
+            .andWhere('app.customerId = :customerId', { customerId })
+            .select('pp.id', 'pipelineProgressId');
+        if (applicationId?.trim()) {
+            qb.andWhere('app.id = :applicationId', { applicationId: applicationId.trim() });
+        }
+        const rows = await qb.getRawMany();
+        return rows.map((r) => r.pipelineProgressId);
+    }
     async getAssigneesByProgressIds(progressIds) {
         const result = new Map();
         if (!progressIds.length) {
@@ -215,12 +210,10 @@ exports.PipelineStepAssignmentService = PipelineStepAssignmentService;
 exports.PipelineStepAssignmentService = PipelineStepAssignmentService = PipelineStepAssignmentService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(associate_pipeline_step_entity_1.AssociatePipelineStep)),
-    __param(1, (0, typeorm_1.InjectRepository)(associate_customer_entity_1.AssociateCustomer)),
-    __param(2, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
-    __param(3, (0, typeorm_1.InjectRepository)(customer_application_pipeline_progress_entity_1.CustomerApplicationPipelineProgress)),
-    __param(4, (0, typeorm_1.InjectRepository)(customer_application_entity_1.CustomerApplication)),
+    __param(1, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
+    __param(2, (0, typeorm_1.InjectRepository)(customer_application_pipeline_progress_entity_1.CustomerApplicationPipelineProgress)),
+    __param(3, (0, typeorm_1.InjectRepository)(customer_application_entity_1.CustomerApplication)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
-        typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository])

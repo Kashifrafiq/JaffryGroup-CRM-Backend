@@ -17,8 +17,14 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CustomersService } from '../customers/customers.service';
 import { PipelineStepAssignmentService } from '../customers/pipeline-step-assignment.service';
+import { DocumentAssignmentService } from '../customers/document-assignment.service';
 
 type UserProfile = AdminProfile | AssociateProfile | CustomerProfile;
+
+type CustomerApplicationSummary = {
+  applicationId: string;
+  applicationType: { id: string; name: string } | null;
+};
 
 type UserView = {
   id: string;
@@ -30,7 +36,7 @@ type UserView = {
   name: string;
   phoneNumber?: string;
   property?: string;
-  applicationType?: string;
+  applications?: CustomerApplicationSummary[];
   address?: string;
   dateOfBirth?: Date;
   profilePhoto?: string;
@@ -53,6 +59,7 @@ export class UsersService {
     private readonly customerProfileRepository: Repository<CustomerProfile>,
     private readonly customersService: CustomersService,
     private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
+    private readonly documentAssignmentService: DocumentAssignmentService,
   ) {}
 
   async create(
@@ -93,7 +100,13 @@ export class UsersService {
 
   async findAll(): Promise<UserView[]> {
     const users = await this.userRepository.find({
-      relations: ['adminProfile', 'associateProfile', 'customerProfile'],
+      relations: [
+        'adminProfile',
+        'associateProfile',
+        'customerProfile',
+        'customerProfile.applications',
+        'customerProfile.applications.applicationType',
+      ],
     });
     return users.map((user) => this.toUserView(user, this.getProfileFromUser(user)));
   }
@@ -112,15 +125,18 @@ export class UsersService {
       return [];
     }
 
-    const customerIds = await this.pipelineStepAssignmentService.getCustomerIdsForAssociate(
-      associateProfile.id,
-    );
+    const [pipelineCustomerIds, documentCustomerIds] = await Promise.all([
+      this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id),
+      this.documentAssignmentService.getCustomerIdsForAssociate(associateProfile.id),
+    ]);
+    const customerIds = [...new Set([...pipelineCustomerIds, ...documentCustomerIds])];
     if (!customerIds.length) {
       return [];
     }
 
     const customers = await this.customerProfileRepository.find({
       where: { id: In(customerIds) },
+      relations: ['applications', 'applications.applicationType'],
     });
 
     return customers.map((c) => this.toStandaloneCustomerView(c));
@@ -129,7 +145,13 @@ export class UsersService {
   async findOne(id: string): Promise<UserView> {
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['adminProfile', 'associateProfile', 'customerProfile'],
+      relations: [
+        'adminProfile',
+        'associateProfile',
+        'customerProfile',
+        'customerProfile.applications',
+        'customerProfile.applications.applicationType',
+      ],
     });
     if (!user) throw new NotFoundException(`User #${id} not found`);
 
@@ -139,7 +161,13 @@ export class UsersService {
   async update(id: string, updateUserDto: UpdateUserDto): Promise<UserView> {
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['adminProfile', 'associateProfile', 'customerProfile'],
+      relations: [
+        'adminProfile',
+        'associateProfile',
+        'customerProfile',
+        'customerProfile.applications',
+        'customerProfile.applications.applicationType',
+      ],
     });
     if (!user) throw new NotFoundException(`User #${id} not found`);
 
@@ -306,7 +334,25 @@ export class UsersService {
     }
   }
 
+  private toCustomerApplications(
+    customer: CustomerProfile,
+  ): CustomerApplicationSummary[] {
+    return (customer.applications ?? [])
+      .slice()
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((app) => ({
+        applicationId: app.id,
+        applicationType: app.applicationType
+          ? {
+              id: app.applicationType.id,
+              name: app.applicationType.name,
+            }
+          : null,
+      }));
+  }
+
   private toStandaloneCustomerView(customer: CustomerProfile): UserView {
+    const applications = this.toCustomerApplications(customer);
     return {
       id: customer.id,
       email: customer.email ?? '',
@@ -317,7 +363,7 @@ export class UsersService {
       name: `${customer.firstName} ${customer.lastName}`.trim(),
       phoneNumber: customer.phoneNumber,
       property: customer.property,
-      applicationType: customer.applicationType,
+      applications,
       address: customer.address,
       dateOfBirth: customer.dateOfBirth,
       profilePhoto: customer.profilePhoto,
@@ -333,6 +379,9 @@ export class UsersService {
       throw new NotFoundException('User profile not found');
     }
 
+    const customerApplications =
+      profile instanceof CustomerProfile ? this.toCustomerApplications(profile) : undefined;
+
     return {
       id: user.id,
       email: user.email,
@@ -343,8 +392,7 @@ export class UsersService {
       name: `${profile.firstName} ${profile.lastName}`.trim(),
       phoneNumber: profile.phoneNumber,
       property: profile instanceof CustomerProfile ? profile.property : undefined,
-      applicationType:
-        profile instanceof CustomerProfile ? profile.applicationType : undefined,
+      applications: customerApplications,
       address: profile.address,
       dateOfBirth: profile.dateOfBirth,
       profilePhoto: profile.profilePhoto,

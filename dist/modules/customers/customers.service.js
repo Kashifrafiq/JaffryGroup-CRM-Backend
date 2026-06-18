@@ -24,6 +24,7 @@ const user_role_enum_1 = require("../users/entities/user-role.enum");
 const user_entity_1 = require("../users/entities/user.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const pipeline_step_assignment_service_1 = require("./pipeline-step-assignment.service");
+const document_assignment_service_1 = require("./document-assignment.service");
 const customer_application_entity_1 = require("./entities/customer-application.entity");
 const customer_application_status_enum_1 = require("./entities/customer-application-status.enum");
 const application_types_service_1 = require("../applications/application-types.service");
@@ -39,6 +40,7 @@ let CustomersService = CustomersService_1 = class CustomersService {
     applicationRepository;
     associateProfileRepository;
     pipelineStepAssignmentService;
+    documentAssignmentService;
     customerInviteRepository;
     userRepository;
     applicationTypesService;
@@ -48,11 +50,12 @@ let CustomersService = CustomersService_1 = class CustomersService {
     configService;
     dataSource;
     logger = new common_1.Logger(CustomersService_1.name);
-    constructor(customerRepository, applicationRepository, associateProfileRepository, pipelineStepAssignmentService, customerInviteRepository, userRepository, applicationTypesService, applicationWorkflowService, customerApplicationWorkflowService, customerInviteMailService, configService, dataSource) {
+    constructor(customerRepository, applicationRepository, associateProfileRepository, pipelineStepAssignmentService, documentAssignmentService, customerInviteRepository, userRepository, applicationTypesService, applicationWorkflowService, customerApplicationWorkflowService, customerInviteMailService, configService, dataSource) {
         this.customerRepository = customerRepository;
         this.applicationRepository = applicationRepository;
         this.associateProfileRepository = associateProfileRepository;
         this.pipelineStepAssignmentService = pipelineStepAssignmentService;
+        this.documentAssignmentService = documentAssignmentService;
         this.customerInviteRepository = customerInviteRepository;
         this.userRepository = userRepository;
         this.applicationTypesService = applicationTypesService;
@@ -64,12 +67,12 @@ let CustomersService = CustomersService_1 = class CustomersService {
     }
     async create(dto, createdBy) {
         this.assertAdminOrAssociate(createdBy);
-        if (!dto.applicationTypeId && !dto.applicationTypeCode) {
-            throw new common_1.BadRequestException('Provide applicationTypeId or applicationTypeCode');
-        }
-        const appType = await this.resolveApplicationType({
+        this.assertHasApplicationTypeInput(dto);
+        const appTypes = await this.resolveApplicationTypes({
             applicationTypeId: dto.applicationTypeId,
             applicationTypeCode: dto.applicationTypeCode,
+            applicationTypeIds: dto.applicationTypeIds,
+            applicationTypeCodes: dto.applicationTypeCodes,
         });
         const normalizedEmail = dto.email.trim().toLowerCase();
         await this.assertEmailAvailable(normalizedEmail);
@@ -88,18 +91,16 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 profilePhoto: dto.profilePhoto,
             });
             const saved = await em.save(customer_profile_entity_1.CustomerProfile, c);
-            const app = em.create(customer_application_entity_1.CustomerApplication, {
-                customerId: saved.id,
-                applicationTypeId: appType.id,
+            await this.instantiateApplicationsForCustomer(em, saved.id, appTypes, {
                 status: dto.status ?? customer_application_status_enum_1.CustomerApplicationStatus.DRAFT,
-                pipeline: dto.pipeline ?? null,
             });
-            const savedApp = await em.save(customer_application_entity_1.CustomerApplication, app);
-            await this.applicationWorkflowService.instantiateForNewApplication(em, savedApp.id, appType.id);
             return saved;
         });
         if (associateId) {
             await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(customer.id, associateId);
+        }
+        if (dto.documentAssignments?.length) {
+            await this.documentAssignmentService.applyAssignmentsOnCreate(customer.id, dto.documentAssignments);
         }
         return this.findOneDetail(customer.id, createdBy);
     }
@@ -153,7 +154,7 @@ let CustomersService = CustomersService_1 = class CustomersService {
         if (effectiveRole !== user_role_enum_1.UserRole.CUSTOMER) {
             throw new common_1.ForbiddenException('Role must be customer');
         }
-        const appType = await this.resolveApplicationTypeForLegacy(dto);
+        const appTypes = await this.resolveApplicationTypesForLegacy(dto);
         const normalizedEmail = dto.email.trim().toLowerCase();
         await this.assertEmailAvailable(normalizedEmail);
         const phone = dto.phone?.trim() ?? '';
@@ -173,13 +174,9 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 profilePhoto: dto.profilePhoto,
             });
             const saved = await em.save(customer_profile_entity_1.CustomerProfile, c);
-            const legacyApp = await em.save(customer_application_entity_1.CustomerApplication, em.create(customer_application_entity_1.CustomerApplication, {
-                customerId: saved.id,
-                applicationTypeId: appType.id,
+            await this.instantiateApplicationsForCustomer(em, saved.id, appTypes, {
                 status: customer_application_status_enum_1.CustomerApplicationStatus.DRAFT,
-                pipeline: null,
-            }));
-            await this.applicationWorkflowService.instantiateForNewApplication(em, legacyApp.id, appType.id);
+            });
             return saved;
         });
     }
@@ -187,7 +184,7 @@ let CustomersService = CustomersService_1 = class CustomersService {
         this.assertAdminOrAssociate(actor);
         if (actor.role === user_role_enum_1.UserRole.ADMIN) {
             const customers = await this.queryCustomersWithFiltersForList(query, undefined);
-            const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c)));
+            const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c, false, actor)));
             return this.attachAssignedAssociates(details);
         }
         const ids = await this.customerIdsForAssociateUser(actor.id);
@@ -195,7 +192,7 @@ let CustomersService = CustomersService_1 = class CustomersService {
             return [];
         }
         const customers = await this.queryCustomersWithFiltersForList(query, ids);
-        const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c)));
+        const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c, false, actor)));
         return this.attachAssignedAssociates(details);
     }
     async findMyInfo(userId) {
@@ -206,14 +203,23 @@ let CustomersService = CustomersService_1 = class CustomersService {
         if (!customer) {
             throw new common_1.NotFoundException('Customer profile not found for current user');
         }
-        const latestApplication = (customer.applications ?? [])
+        const applications = (customer.applications ?? [])
             .slice()
-            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .map((app) => ({
+            applicationId: app.id,
+            applicationType: app.applicationType
+                ? {
+                    id: app.applicationType.id,
+                    name: app.applicationType.name,
+                }
+                : null,
+        }));
         return {
             id: customer.id,
             name: `${customer.firstName} ${customer.lastName}`.trim(),
             email: customer.email ?? '',
-            applicationType: latestApplication?.applicationType?.name ?? customer.applicationType ?? null,
+            applications,
         };
     }
     async findMyPipelineProgress(userId) {
@@ -262,6 +268,7 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 'applications.applicationType',
                 'applications.applicationDocuments',
                 'applications.applicationDocuments.requirement',
+                'applications.applicationDocuments.files',
             ],
         });
         if (!customer) {
@@ -276,8 +283,12 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 .slice()
                 .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
                 .map((doc) => {
-                const uploadedByMe = (0, customer_document_visibility_1.isUploadedByCustomerUser)(doc, userId, uploaderRoleByUserId);
-                const uploaded = (0, customer_document_visibility_1.isDocumentFileUploaded)(doc);
+                const customerFiles = (0, customer_document_visibility_1.mapVisibleCustomerFiles)(doc.files ?? [], userId, uploaderRoleByUserId);
+                const legacyUploadedByMe = (0, customer_document_visibility_1.isUploadedByCustomerUser)(doc, userId, uploaderRoleByUserId);
+                const hasAnyUpload = (doc.files ?? []).some((f) => !!f.uploadedAt && !!f.storageKey) ||
+                    (0, customer_document_visibility_1.isDocumentFileUploaded)(doc);
+                const uploaded = hasAnyUpload;
+                const uploadedByMe = customerFiles.length > 0 || legacyUploadedByMe;
                 return {
                     id: doc.id,
                     requirementKey: doc.requirement.requirementKey,
@@ -286,9 +297,17 @@ let CustomersService = CustomersService_1 = class CustomersService {
                     status: doc.status,
                     uploaded,
                     uploadedByMe,
-                    uploadedAt: uploaded ? doc.uploadedAt ?? null : null,
-                    canPreview: (0, customer_document_visibility_1.canCustomerPreviewDocument)(doc, userId, uploaderRoleByUserId),
-                    originalFilename: uploadedByMe ? doc.originalFilename ?? null : null,
+                    uploadedAt: uploadedByMe
+                        ? customerFiles[0]?.uploadedAt ?? doc.uploadedAt ?? null
+                        : null,
+                    canPreview: customerFiles.some((f) => f.canPreview) ||
+                        (0, customer_document_visibility_1.canCustomerPreviewDocument)(doc, userId, uploaderRoleByUserId),
+                    originalFilename: uploadedByMe
+                        ? customerFiles[0]?.originalFilename ?? doc.originalFilename ?? null
+                        : null,
+                    fileCount: customerFiles.length +
+                        (legacyUploadedByMe && doc.storageKey ? 1 : 0),
+                    files: customerFiles,
                 };
             });
             const uploaded = documents.filter((d) => d.uploaded).length;
@@ -315,6 +334,194 @@ let CustomersService = CustomersService_1 = class CustomersService {
             applications,
         };
     }
+    async findCustomerDocuments(customerId, actor, query) {
+        this.assertAdminOrAssociate(actor);
+        await this.assertCanAccessCustomer(actor, customerId);
+        const associateId = query.associateId.trim();
+        const associate = await this.associateProfileRepository.findOne({
+            where: { id: associateId },
+        });
+        if (!associate) {
+            throw new common_1.NotFoundException(`Associate #${associateId} not found`);
+        }
+        if (actor.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            const ownProfile = await this.associateProfileRepository.findOne({
+                where: { userId: actor.id },
+            });
+            if (!ownProfile || ownProfile.id !== associateId) {
+                throw new common_1.ForbiddenException('Associates can only load documents for their own profile');
+            }
+        }
+        const customer = await this.customerRepository.findOne({
+            where: { id: customerId },
+            relations: [
+                'applications',
+                'applications.applicationType',
+                'applications.applicationDocuments',
+                'applications.applicationDocuments.requirement',
+                'applications.applicationDocuments.files',
+            ],
+        });
+        if (!customer) {
+            throw new common_1.NotFoundException(`Customer #${customerId} not found`);
+        }
+        const assignedDocumentIds = await this.documentAssignmentService.getAssignedDocumentIdsForAssociate(associateId, customerId);
+        const applicationFilter = query.applicationId?.trim();
+        const apps = (customer.applications ?? [])
+            .filter((app) => !applicationFilter || app.id === applicationFilter)
+            .slice()
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        if (applicationFilter && !apps.length) {
+            throw new common_1.NotFoundException(`Application #${applicationFilter} not found for customer #${customerId}`);
+        }
+        const allDocumentIds = apps.flatMap((app) => (app.applicationDocuments ?? []).map((doc) => doc.id));
+        const documentAssigneesById = actor.role === user_role_enum_1.UserRole.ADMIN
+            ? await this.documentAssignmentService.getAssigneesByDocumentIds(allDocumentIds)
+            : new Map();
+        const assignedDocumentIdSet = new Set(assignedDocumentIds);
+        const applications = apps.map((app) => {
+            const documents = (app.applicationDocuments ?? [])
+                .slice()
+                .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+                .filter((doc) => assignedDocumentIdSet.has(doc.id))
+                .map((doc) => {
+                const attachmentFiles = (doc.files ?? []).filter((f) => !!f.uploadedAt && !!f.storageKey);
+                const uploaded = attachmentFiles.length > 0 || (0, customer_document_visibility_1.isDocumentFileUploaded)(doc);
+                return {
+                    id: doc.id,
+                    requirementKey: doc.requirement.requirementKey,
+                    sectionTitle: doc.requirement.sectionTitle,
+                    itemLabel: doc.requirement.itemLabel,
+                    sortOrder: doc.requirement.sortOrder,
+                    status: doc.status,
+                    uploaded,
+                    fileCount: attachmentFiles.length + (doc.uploadedAt && doc.storageKey ? 1 : 0),
+                    storageKey: doc.storageKey ?? null,
+                    bucket: doc.bucket ?? null,
+                    originalFilename: doc.originalFilename ?? null,
+                    mimeType: doc.mimeType ?? null,
+                    sizeBytes: doc.sizeBytes ?? null,
+                    uploadedAt: doc.uploadedAt ?? null,
+                    uploadedByUserId: doc.uploadedByUserId ?? null,
+                    notes: doc.notes ?? null,
+                    assignedTo: documentAssigneesById.get(doc.id) ?? [],
+                    files: attachmentFiles.map((f) => ({
+                        id: f.id,
+                        storageKey: f.storageKey ?? null,
+                        bucket: f.bucket ?? null,
+                        originalFilename: f.originalFilename ?? null,
+                        mimeType: f.mimeType ?? null,
+                        sizeBytes: f.sizeBytes ?? null,
+                        uploadedAt: f.uploadedAt ?? null,
+                        uploadedByUserId: f.uploadedByUserId ?? null,
+                    })),
+                };
+            });
+            const uploaded = documents.filter((d) => d.uploaded).length;
+            const total = documents.length;
+            return {
+                applicationId: app.id,
+                applicationType: app.applicationType
+                    ? {
+                        id: app.applicationType.id,
+                        code: app.applicationType.code,
+                        name: app.applicationType.name,
+                    }
+                    : null,
+                summary: {
+                    uploaded,
+                    remaining: total - uploaded,
+                    total,
+                },
+                documents,
+            };
+        });
+        return {
+            customerId: customer.id,
+            customerName: `${customer.firstName} ${customer.lastName}`.trim(),
+            associateId: associate.id,
+            associateName: `${associate.firstName} ${associate.lastName}`.trim(),
+            applications,
+        };
+    }
+    async findCustomerPipelineSteps(customerId, actor, query) {
+        this.assertAdminOrAssociate(actor);
+        await this.assertCanAccessCustomer(actor, customerId);
+        const associateId = query.associateId.trim();
+        const associate = await this.associateProfileRepository.findOne({
+            where: { id: associateId },
+        });
+        if (!associate) {
+            throw new common_1.NotFoundException(`Associate #${associateId} not found`);
+        }
+        if (actor.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            const ownProfile = await this.associateProfileRepository.findOne({
+                where: { userId: actor.id },
+            });
+            if (!ownProfile || ownProfile.id !== associateId) {
+                throw new common_1.ForbiddenException('Associates can only load pipeline steps for their own profile');
+            }
+        }
+        const customer = await this.customerRepository.findOne({
+            where: { id: customerId },
+            relations: [
+                'applications',
+                'applications.applicationType',
+                'applications.pipelineProgress',
+            ],
+        });
+        if (!customer) {
+            throw new common_1.NotFoundException(`Customer #${customerId} not found`);
+        }
+        const assignedProgressIds = await this.pipelineStepAssignmentService.getAssignedPipelineProgressIdsForAssociate(associateId, customerId, query.applicationId);
+        const assignedProgressIdSet = new Set(assignedProgressIds);
+        const applicationFilter = query.applicationId?.trim();
+        const apps = (customer.applications ?? [])
+            .filter((app) => !applicationFilter || app.id === applicationFilter)
+            .slice()
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        if (applicationFilter && !apps.length) {
+            throw new common_1.NotFoundException(`Application #${applicationFilter} not found for customer #${customerId}`);
+        }
+        const allProgressIds = apps.flatMap((app) => (app.pipelineProgress ?? []).map((step) => step.id));
+        const assigneesByProgressId = actor.role === user_role_enum_1.UserRole.ADMIN
+            ? await this.pipelineStepAssignmentService.getAssigneesByProgressIds(allProgressIds)
+            : new Map();
+        const applications = apps.map((app) => {
+            const pipelineSteps = (app.pipelineProgress ?? [])
+                .slice()
+                .sort((a, b) => a.stepIndex - b.stepIndex)
+                .filter((step) => assignedProgressIdSet.has(step.id))
+                .map((step) => ({
+                stepIndex: step.stepIndex,
+                title: step.title,
+                completedAt: step.completedAt ?? null,
+                assignedTo: assigneesByProgressId.get(step.id) ?? [],
+            }));
+            return {
+                applicationId: app.id,
+                applicationType: app.applicationType
+                    ? {
+                        id: app.applicationType.id,
+                        code: app.applicationType.code,
+                        name: app.applicationType.name,
+                    }
+                    : null,
+                summary: {
+                    completedSteps: pipelineSteps.filter((s) => !!s.completedAt).length,
+                    totalSteps: pipelineSteps.length,
+                },
+                pipelineSteps,
+            };
+        });
+        return {
+            customerId: customer.id,
+            customerName: `${customer.firstName} ${customer.lastName}`.trim(),
+            associateId: associate.id,
+            associateName: `${associate.firstName} ${associate.lastName}`.trim(),
+            applications,
+        };
+    }
     async findOneDetail(customerId, actor) {
         this.assertAdminOrAssociate(actor);
         await this.assertCanAccessCustomer(actor, customerId);
@@ -326,12 +533,13 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 'applications.pipelineProgress',
                 'applications.applicationDocuments',
                 'applications.applicationDocuments.requirement',
+                'applications.applicationDocuments.files',
             ],
         });
         if (!customer) {
             throw new common_1.NotFoundException(`Customer #${customerId} not found`);
         }
-        const detail = await this.toCustomerSummary(customer, true);
+        const detail = await this.toCustomerSummary(customer, true, actor);
         const [withAssociates] = await this.attachAssignedAssociates([detail]);
         return withAssociates;
     }
@@ -368,6 +576,9 @@ let CustomersService = CustomersService_1 = class CustomersService {
             customer.profilePhoto = dto.profilePhoto;
         }
         await this.customerRepository.save(customer);
+        if (dto.documentAssignments?.length) {
+            await this.documentAssignmentService.applyAssignmentsOnUpdate(customerId, dto.documentAssignments);
+        }
         return this.findOneDetail(customerId, actor);
     }
     async removeCustomer(customerId, actor) {
@@ -394,14 +605,13 @@ let CustomersService = CustomersService_1 = class CustomersService {
         if (!customer) {
             throw new common_1.NotFoundException(`Customer #${customerId} not found`);
         }
-        const savedApp = await this.applicationRepository.save(this.applicationRepository.create({
-            customerId,
-            applicationTypeId: appType.id,
-            status: dto.status ?? customer_application_status_enum_1.CustomerApplicationStatus.DRAFT,
-            pipeline: dto.pipeline ?? null,
-        }));
         await this.dataSource.transaction(async (em) => {
-            await this.applicationWorkflowService.instantiateForNewApplication(em, savedApp.id, appType.id);
+            const app = await em.save(customer_application_entity_1.CustomerApplication, em.create(customer_application_entity_1.CustomerApplication, {
+                customerId,
+                applicationTypeId: appType.id,
+                status: dto.status ?? customer_application_status_enum_1.CustomerApplicationStatus.DRAFT,
+            }));
+            await this.applicationWorkflowService.instantiateForNewApplication(em, app.id, appType.id);
         });
         return this.findOneDetail(customerId, actor);
     }
@@ -427,9 +637,6 @@ let CustomersService = CustomersService_1 = class CustomersService {
         }
         if (dto.status !== undefined) {
             app.status = dto.status;
-        }
-        if (dto.pipeline !== undefined) {
-            app.pipeline = dto.pipeline;
         }
         await this.applicationRepository.save(app);
         if (app.applicationTypeId !== previousTypeId) {
@@ -513,7 +720,11 @@ let CustomersService = CustomersService_1 = class CustomersService {
         if (!associateProfile) {
             return [];
         }
-        return this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id);
+        const [pipelineCustomerIds, documentCustomerIds] = await Promise.all([
+            this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id),
+            this.documentAssignmentService.getCustomerIdsForAssociate(associateProfile.id),
+        ]);
+        return [...new Set([...pipelineCustomerIds, ...documentCustomerIds])];
     }
     async assertCanAccessCustomer(actor, customerId) {
         if (actor.role === user_role_enum_1.UserRole.ADMIN) {
@@ -528,8 +739,11 @@ let CustomersService = CustomersService_1 = class CustomersService {
         if (!associateProfile) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
-        const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(associateProfile.id, customerId);
-        if (!allowed) {
+        const [pipelineAllowed, documentAllowed] = await Promise.all([
+            this.pipelineStepAssignmentService.hasAccessToCustomer(associateProfile.id, customerId),
+            this.documentAssignmentService.hasAccessToCustomer(associateProfile.id, customerId),
+        ]);
+        if (!pipelineAllowed && !documentAllowed) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
     }
@@ -644,6 +858,81 @@ let CustomersService = CustomersService_1 = class CustomersService {
         }
         return result;
     }
+    assertHasApplicationTypeInput(input) {
+        const hasSingle = !!input.applicationTypeId?.trim() || !!input.applicationTypeCode?.trim();
+        const hasArray = (input.applicationTypeIds?.some((id) => id?.trim()) ?? false) ||
+            (input.applicationTypeCodes?.some((code) => code?.trim()) ?? false);
+        if (!hasSingle && !hasArray) {
+            throw new common_1.BadRequestException('Provide applicationTypeId, applicationTypeCode, applicationTypeIds, or applicationTypeCodes');
+        }
+    }
+    async instantiateApplicationsForCustomer(em, customerId, appTypes, defaults) {
+        for (const appType of appTypes) {
+            const app = await em.save(customer_application_entity_1.CustomerApplication, em.create(customer_application_entity_1.CustomerApplication, {
+                customerId,
+                applicationTypeId: appType.id,
+                status: defaults.status,
+            }));
+            await this.applicationWorkflowService.instantiateForNewApplication(em, app.id, appType.id);
+        }
+    }
+    async resolveApplicationTypes(input) {
+        const specs = [];
+        if (input.applicationTypeId?.trim()) {
+            specs.push({ applicationTypeId: input.applicationTypeId.trim() });
+        }
+        if (input.applicationTypeCode?.trim()) {
+            specs.push({ applicationTypeCode: input.applicationTypeCode.trim() });
+        }
+        for (const id of input.applicationTypeIds ?? []) {
+            if (id?.trim()) {
+                specs.push({ applicationTypeId: id.trim() });
+            }
+        }
+        for (const code of input.applicationTypeCodes ?? []) {
+            if (code?.trim()) {
+                specs.push({ applicationTypeCode: code.trim() });
+            }
+        }
+        if (!specs.length) {
+            throw new common_1.BadRequestException('Provide applicationTypeId, applicationTypeCode, applicationTypeIds, or applicationTypeCodes');
+        }
+        const resolved = [];
+        for (const spec of specs) {
+            resolved.push(await this.resolveApplicationType(spec));
+        }
+        return resolved;
+    }
+    async resolveApplicationTypesForLegacy(dto) {
+        const specs = [];
+        if (dto.applicationTypeId?.trim()) {
+            specs.push({ applicationTypeId: dto.applicationTypeId.trim() });
+        }
+        if (dto.applicationTypeCode?.trim()) {
+            specs.push({ applicationTypeCode: dto.applicationTypeCode.trim() });
+        }
+        for (const id of dto.applicationTypeIds ?? []) {
+            if (id?.trim()) {
+                specs.push({ applicationTypeId: id.trim() });
+            }
+        }
+        for (const code of dto.applicationTypeCodes ?? []) {
+            if (code?.trim()) {
+                specs.push({ applicationTypeCode: code.trim() });
+            }
+        }
+        if (specs.length) {
+            const resolved = [];
+            for (const spec of specs) {
+                resolved.push(await this.resolveApplicationType(spec));
+            }
+            return resolved;
+        }
+        if (!dto.applicationType?.trim()) {
+            throw new common_1.BadRequestException('Provide applicationType, applicationTypeId, applicationTypeCode, applicationTypeIds, or applicationTypeCodes (see GET /application-types).');
+        }
+        return [await this.resolveTypeFromLegacyLabel(dto.applicationType)];
+    }
     async resolveApplicationType(input) {
         if (input.applicationTypeId?.trim()) {
             return this.applicationTypesService.findActiveById(input.applicationTypeId.trim());
@@ -657,22 +946,6 @@ let CustomersService = CustomersService_1 = class CustomersService {
             return row;
         }
         throw new common_1.BadRequestException('Provide applicationTypeId or applicationTypeCode');
-    }
-    async resolveApplicationTypeForLegacy(dto) {
-        if (dto.applicationTypeId?.trim()) {
-            return this.applicationTypesService.findActiveById(dto.applicationTypeId.trim());
-        }
-        if (dto.applicationTypeCode?.trim()) {
-            const row = await this.applicationTypesService.findActiveByCode(dto.applicationTypeCode.trim());
-            if (!row) {
-                throw new common_1.BadRequestException(`Unknown or inactive application type code: ${dto.applicationTypeCode}`);
-            }
-            return row;
-        }
-        if (!dto.applicationType?.trim()) {
-            throw new common_1.BadRequestException('Provide applicationType, applicationTypeId, or applicationTypeCode (see GET /application-types).');
-        }
-        return this.resolveTypeFromLegacyLabel(dto.applicationType);
     }
     async resolveTypeFromLegacyLabel(label) {
         const trimmed = label.trim();
@@ -694,7 +967,10 @@ let CustomersService = CustomersService_1 = class CustomersService {
     async uploaderRoleMapForDocuments(documents) {
         const uploaderIds = [
             ...new Set(documents
-                .map((d) => d.uploadedByUserId?.trim())
+                .flatMap((d) => [
+                d.uploadedByUserId?.trim(),
+                ...(d.files ?? []).map((f) => f.uploadedByUserId?.trim()),
+            ])
                 .filter((id) => !!id)),
         ];
         if (!uploaderIds.length) {
@@ -720,7 +996,19 @@ let CustomersService = CustomersService_1 = class CustomersService {
             lastName: parts.slice(1).join(' '),
         };
     }
-    toCustomerSummary(customer, includeDocuments = false) {
+    async toCustomerSummary(customer, includeDocuments = false, actor) {
+        let assignedDocumentIds = null;
+        if (actor?.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            const profile = await this.associateProfileRepository.findOne({
+                where: { userId: actor.id },
+            });
+            assignedDocumentIds = profile
+                ? await this.documentAssignmentService.getAssignedDocumentIdsForAssociate(profile.id, customer.id)
+                : [];
+        }
+        const documentAssigneesById = includeDocuments && actor?.role !== user_role_enum_1.UserRole.ASSOCIATE
+            ? await this.documentAssignmentService.getAssigneesByDocumentIds((customer.applications ?? []).flatMap((app) => (app.applicationDocuments ?? []).map((doc) => doc.id)))
+            : new Map();
         const applications = (customer.applications ?? [])
             .slice()
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -750,6 +1038,12 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 ? (a.applicationDocuments ?? [])
                     .slice()
                     .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+                    .filter((d) => {
+                    if (assignedDocumentIds === null) {
+                        return true;
+                    }
+                    return assignedDocumentIds.includes(d.id);
+                })
                     .map((d) => ({
                     id: d.id,
                     requirementKey: d.requirement.requirementKey,
@@ -760,6 +1054,19 @@ let CustomersService = CustomersService_1 = class CustomersService {
                     originalFilename: d.originalFilename ?? null,
                     mimeType: d.mimeType ?? null,
                     uploadedAt: d.uploadedAt ?? null,
+                    assignedTo: documentAssigneesById.get(d.id) ?? [],
+                    files: (d.files ?? [])
+                        .filter((f) => !!f.uploadedAt && !!f.storageKey)
+                        .map((f) => ({
+                        id: f.id,
+                        storageKey: f.storageKey ?? null,
+                        bucket: f.bucket ?? null,
+                        originalFilename: f.originalFilename ?? null,
+                        mimeType: f.mimeType ?? null,
+                        sizeBytes: f.sizeBytes ?? null,
+                        uploadedAt: f.uploadedAt ?? null,
+                        uploadedByUserId: f.uploadedByUserId ?? null,
+                    })),
                 }))
                 : undefined,
         }));
@@ -781,12 +1088,13 @@ exports.CustomersService = CustomersService = CustomersService_1 = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
     __param(1, (0, typeorm_1.InjectRepository)(customer_application_entity_1.CustomerApplication)),
     __param(2, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
-    __param(4, (0, typeorm_1.InjectRepository)(customer_invite_entity_1.CustomerInvite)),
-    __param(5, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(5, (0, typeorm_1.InjectRepository)(customer_invite_entity_1.CustomerInvite)),
+    __param(6, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         pipeline_step_assignment_service_1.PipelineStepAssignmentService,
+        document_assignment_service_1.DocumentAssignmentService,
         typeorm_2.Repository,
         typeorm_2.Repository,
         application_types_service_1.ApplicationTypesService,

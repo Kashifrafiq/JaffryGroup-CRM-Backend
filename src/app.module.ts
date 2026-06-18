@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
@@ -45,6 +46,8 @@ const isTruthy = (value: string | undefined, defaultValue = false): boolean => {
           database,
           autoLoadEntities: true,
           synchronize: isTruthy(configService.get<string>('DB_SYNCHRONIZE'), true),
+          migrations: [join(__dirname, 'migrations', '*.{js,ts}')],
+          migrationsRun: isTruthy(configService.get<string>('DB_RUN_MIGRATIONS'), false),
           ssl: useSsl ? { rejectUnauthorized } : false,
         };
       },

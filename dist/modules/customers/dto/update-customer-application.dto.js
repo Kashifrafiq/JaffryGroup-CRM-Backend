@@ -16,7 +16,6 @@ class UpdateCustomerApplicationDto {
     applicationTypeId;
     applicationTypeCode;
     status;
-    pipeline;
 }
 exports.UpdateCustomerApplicationDto = UpdateCustomerApplicationDto;
 __decorate([
@@ -35,9 +34,4 @@ __decorate([
     (0, class_validator_1.IsEnum)(customer_application_status_enum_1.CustomerApplicationStatus),
     __metadata("design:type", String)
 ], UpdateCustomerApplicationDto.prototype, "status", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsObject)(),
-    __metadata("design:type", Object)
-], UpdateCustomerApplicationDto.prototype, "pipeline", void 0);
 //# sourceMappingURL=update-customer-application.dto.js.map

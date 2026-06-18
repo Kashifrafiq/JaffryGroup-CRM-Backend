@@ -1,3 +1,4 @@
+import { DocumentAssignmentDto } from './document-assignment.dto';
 export declare class UpdateCustomerDto {
     name?: string;
     email?: string;
@@ -5,4 +6,5 @@ export declare class UpdateCustomerDto {
     property?: string;
     address?: string;
     profilePhoto?: string;
+    documentAssignments?: DocumentAssignmentDto[];
 }

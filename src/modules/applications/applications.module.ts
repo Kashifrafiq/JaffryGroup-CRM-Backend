@@ -5,6 +5,7 @@ import { ApplicationPipelineStepTemplate } from './entities/application-pipeline
 import { ApplicationDocumentRequirement } from './entities/application-document-requirement.entity';
 import { CustomerApplicationPipelineProgress } from './entities/customer-application-pipeline-progress.entity';
 import { CustomerApplicationDocument } from './entities/customer-application-document.entity';
+import { CustomerApplicationDocumentFile } from './entities/customer-application-document-file.entity';
 import { ApplicationTypesController } from './application-types.controller';
 import { ApplicationTypesService } from './application-types.service';
 import { ApplicationsSeedService } from './applications.seed.service';
@@ -24,6 +25,7 @@ import { S3StorageService } from './s3-storage.service';
       ApplicationDocumentRequirement,
       CustomerApplicationPipelineProgress,
       CustomerApplicationDocument,
+      CustomerApplicationDocumentFile,
     ]),
   ],
   controllers: [ApplicationTypesController],

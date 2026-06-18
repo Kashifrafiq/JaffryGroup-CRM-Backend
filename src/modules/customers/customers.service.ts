@@ -9,13 +9,14 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
-import { DataSource, In, IsNull, MoreThan, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, MoreThan, Repository } from 'typeorm';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { UserRole } from '../users/entities/user-role.enum';
 import { User } from '../users/entities/user.entity';
 import { JwtActor } from './jwt-actor.type';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { PipelineStepAssignmentService, PipelineStepAssignee } from './pipeline-step-assignment.service';
+import { DocumentAssignmentService, DocumentAssignee } from './document-assignment.service';
 import { CreateCustomerDto } from '../users/dto/create-customer.dto';
 import { ApplicationType } from '../applications/entities/application-type.entity';
 import { CustomerApplication } from './entities/customer-application.entity';
@@ -37,6 +38,7 @@ import {
   canCustomerPreviewDocument,
   isDocumentFileUploaded,
   isUploadedByCustomerUser,
+  mapVisibleCustomerFiles,
 } from './customer-document-visibility';
 
 @Injectable()
@@ -51,6 +53,7 @@ export class CustomersService {
     @InjectRepository(AssociateProfile)
     private readonly associateProfileRepository: Repository<AssociateProfile>,
     private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
+    private readonly documentAssignmentService: DocumentAssignmentService,
     @InjectRepository(CustomerInvite)
     private readonly customerInviteRepository: Repository<CustomerInvite>,
     @InjectRepository(User)
@@ -66,14 +69,14 @@ export class CustomersService {
   async create(
     dto: CreateCustomerApiDto,
     createdBy: JwtActor,
-  ): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
+  ): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>> {
     this.assertAdminOrAssociate(createdBy);
-    if (!dto.applicationTypeId && !dto.applicationTypeCode) {
-      throw new BadRequestException('Provide applicationTypeId or applicationTypeCode');
-    }
-    const appType = await this.resolveApplicationType({
+    this.assertHasApplicationTypeInput(dto);
+    const appTypes = await this.resolveApplicationTypes({
       applicationTypeId: dto.applicationTypeId,
       applicationTypeCode: dto.applicationTypeCode,
+      applicationTypeIds: dto.applicationTypeIds,
+      applicationTypeCodes: dto.applicationTypeCodes,
     });
 
     const normalizedEmail = dto.email.trim().toLowerCase();
@@ -96,18 +99,9 @@ export class CustomersService {
       });
       const saved = await em.save(CustomerProfile, c);
 
-      const app = em.create(CustomerApplication, {
-        customerId: saved.id,
-        applicationTypeId: appType.id,
+      await this.instantiateApplicationsForCustomer(em, saved.id, appTypes, {
         status: dto.status ?? CustomerApplicationStatus.DRAFT,
-        pipeline: dto.pipeline ?? null,
       });
-      const savedApp = await em.save(CustomerApplication, app);
-      await this.applicationWorkflowService.instantiateForNewApplication(
-        em,
-        savedApp.id,
-        appType.id,
-      );
       return saved;
     });
 
@@ -115,6 +109,13 @@ export class CustomersService {
       await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(
         customer.id,
         associateId,
+      );
+    }
+
+    if (dto.documentAssignments?.length) {
+      await this.documentAssignmentService.applyAssignmentsOnCreate(
+        customer.id,
+        dto.documentAssignments,
       );
     }
 
@@ -184,7 +185,7 @@ export class CustomersService {
       throw new ForbiddenException('Role must be customer');
     }
 
-    const appType = await this.resolveApplicationTypeForLegacy(dto);
+    const appTypes = await this.resolveApplicationTypesForLegacy(dto);
 
     const normalizedEmail = dto.email.trim().toLowerCase();
     await this.assertEmailAvailable(normalizedEmail);
@@ -209,31 +210,20 @@ export class CustomersService {
       });
       const saved = await em.save(CustomerProfile, c);
 
-      const legacyApp = await em.save(
-        CustomerApplication,
-        em.create(CustomerApplication, {
-          customerId: saved.id,
-          applicationTypeId: appType.id,
-          status: CustomerApplicationStatus.DRAFT,
-          pipeline: null,
-        }),
-      );
-      await this.applicationWorkflowService.instantiateForNewApplication(
-        em,
-        legacyApp.id,
-        appType.id,
-      );
+      await this.instantiateApplicationsForCustomer(em, saved.id, appTypes, {
+        status: CustomerApplicationStatus.DRAFT,
+      });
 
       return saved;
     });
   }
 
-  async findAll(actor: JwtActor, query: ListCustomersQueryDto): Promise<ReturnType<CustomersService['toCustomerSummary']>[]> {
+  async findAll(actor: JwtActor, query: ListCustomersQueryDto): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>[]> {
     this.assertAdminOrAssociate(actor);
 
     if (actor.role === UserRole.ADMIN) {
       const customers = await this.queryCustomersWithFiltersForList(query, undefined);
-      const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c)));
+      const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c, false, actor)));
       return this.attachAssignedAssociates(details);
     }
 
@@ -242,7 +232,7 @@ export class CustomersService {
       return [];
     }
     const customers = await this.queryCustomersWithFiltersForList(query, ids);
-    const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c)));
+    const details = await Promise.all(customers.map((c) => this.toCustomerSummary(c, false, actor)));
     return this.attachAssignedAssociates(details);
   }
 
@@ -250,7 +240,10 @@ export class CustomersService {
     id: string;
     name: string;
     email: string;
-    applicationType: string | null;
+    applications: Array<{
+      applicationId: string;
+      applicationType: { id: string; name: string } | null;
+    }>;
   }> {
     const customer = await this.customerRepository.findOne({
       where: { userId },
@@ -260,15 +253,24 @@ export class CustomersService {
       throw new NotFoundException('Customer profile not found for current user');
     }
 
-    const latestApplication = (customer.applications ?? [])
+    const applications = (customer.applications ?? [])
       .slice()
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((app) => ({
+        applicationId: app.id,
+        applicationType: app.applicationType
+          ? {
+              id: app.applicationType.id,
+              name: app.applicationType.name,
+            }
+          : null,
+      }));
 
     return {
       id: customer.id,
       name: `${customer.firstName} ${customer.lastName}`.trim(),
       email: customer.email ?? '',
-      applicationType: latestApplication?.applicationType?.name ?? customer.applicationType ?? null,
+      applications,
     };
   }
 
@@ -346,6 +348,14 @@ export class CustomersService {
         uploadedAt: Date | null;
         canPreview: boolean;
         originalFilename: string | null;
+        fileCount: number;
+        files: Array<{
+          id: string;
+          originalFilename: string | null;
+          uploadedAt: Date | null;
+          uploadedByMe: boolean;
+          canPreview: boolean;
+        }>;
       }>;
     }>;
   }> {
@@ -356,6 +366,7 @@ export class CustomersService {
         'applications.applicationType',
         'applications.applicationDocuments',
         'applications.applicationDocuments.requirement',
+        'applications.applicationDocuments.files',
       ],
     });
     if (!customer) {
@@ -374,8 +385,17 @@ export class CustomersService {
           .slice()
           .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
           .map((doc) => {
-            const uploadedByMe = isUploadedByCustomerUser(doc, userId, uploaderRoleByUserId);
-            const uploaded = isDocumentFileUploaded(doc);
+            const customerFiles = mapVisibleCustomerFiles(
+              doc.files ?? [],
+              userId,
+              uploaderRoleByUserId,
+            );
+            const legacyUploadedByMe = isUploadedByCustomerUser(doc, userId, uploaderRoleByUserId);
+            const hasAnyUpload =
+              (doc.files ?? []).some((f) => !!f.uploadedAt && !!f.storageKey) ||
+              isDocumentFileUploaded(doc);
+            const uploaded = hasAnyUpload;
+            const uploadedByMe = customerFiles.length > 0 || legacyUploadedByMe;
             return {
               id: doc.id,
               requirementKey: doc.requirement.requirementKey,
@@ -384,9 +404,19 @@ export class CustomersService {
               status: doc.status,
               uploaded,
               uploadedByMe,
-              uploadedAt: uploaded ? doc.uploadedAt ?? null : null,
-              canPreview: canCustomerPreviewDocument(doc, userId, uploaderRoleByUserId),
-              originalFilename: uploadedByMe ? doc.originalFilename ?? null : null,
+              uploadedAt: uploadedByMe
+                ? customerFiles[0]?.uploadedAt ?? doc.uploadedAt ?? null
+                : null,
+              canPreview:
+                customerFiles.some((f) => f.canPreview) ||
+                canCustomerPreviewDocument(doc, userId, uploaderRoleByUserId),
+              originalFilename: uploadedByMe
+                ? customerFiles[0]?.originalFilename ?? doc.originalFilename ?? null
+                : null,
+              fileCount:
+                customerFiles.length +
+                (legacyUploadedByMe && doc.storageKey ? 1 : 0),
+              files: customerFiles,
             };
           });
 
@@ -417,7 +447,311 @@ export class CustomersService {
     };
   }
 
-  async findOneDetail(customerId: string, actor: JwtActor): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
+  async findCustomerDocuments(
+    customerId: string,
+    actor: JwtActor,
+    query: { associateId: string; applicationId?: string },
+  ): Promise<{
+    customerId: string;
+    customerName: string;
+    associateId: string;
+    associateName: string;
+    applications: Array<{
+      applicationId: string;
+      applicationType: { id: string; code: string; name: string } | null;
+      summary: {
+        uploaded: number;
+        remaining: number;
+        total: number;
+      };
+      documents: Array<{
+        id: string;
+        requirementKey: string;
+        sectionTitle: string;
+        itemLabel: string;
+        sortOrder: number;
+        status: string;
+        uploaded: boolean;
+        fileCount: number;
+        storageKey: string | null;
+        bucket: string | null;
+        originalFilename: string | null;
+        mimeType: string | null;
+        sizeBytes: string | null;
+        uploadedAt: Date | null;
+        uploadedByUserId: string | null;
+        notes: string | null;
+        assignedTo: DocumentAssignee[];
+        files: Array<{
+          id: string;
+          storageKey: string | null;
+          bucket: string | null;
+          originalFilename: string | null;
+          mimeType: string | null;
+          sizeBytes: string | null;
+          uploadedAt: Date | null;
+          uploadedByUserId: string | null;
+        }>;
+      }>;
+    }>;
+  }> {
+    this.assertAdminOrAssociate(actor);
+    await this.assertCanAccessCustomer(actor, customerId);
+
+    const associateId = query.associateId.trim();
+    const associate = await this.associateProfileRepository.findOne({
+      where: { id: associateId },
+    });
+    if (!associate) {
+      throw new NotFoundException(`Associate #${associateId} not found`);
+    }
+
+    if (actor.role === UserRole.ASSOCIATE) {
+      const ownProfile = await this.associateProfileRepository.findOne({
+        where: { userId: actor.id },
+      });
+      if (!ownProfile || ownProfile.id !== associateId) {
+        throw new ForbiddenException('Associates can only load documents for their own profile');
+      }
+    }
+
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+      relations: [
+        'applications',
+        'applications.applicationType',
+        'applications.applicationDocuments',
+        'applications.applicationDocuments.requirement',
+        'applications.applicationDocuments.files',
+      ],
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer #${customerId} not found`);
+    }
+
+    const assignedDocumentIds =
+      await this.documentAssignmentService.getAssignedDocumentIdsForAssociate(
+        associateId,
+        customerId,
+      );
+
+    const applicationFilter = query.applicationId?.trim();
+    const apps = (customer.applications ?? [])
+      .filter((app) => !applicationFilter || app.id === applicationFilter)
+      .slice()
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    if (applicationFilter && !apps.length) {
+      throw new NotFoundException(
+        `Application #${applicationFilter} not found for customer #${customerId}`,
+      );
+    }
+
+    const allDocumentIds = apps.flatMap((app) =>
+      (app.applicationDocuments ?? []).map((doc) => doc.id),
+    );
+    const documentAssigneesById =
+      actor.role === UserRole.ADMIN
+        ? await this.documentAssignmentService.getAssigneesByDocumentIds(allDocumentIds)
+        : new Map<string, DocumentAssignee[]>();
+
+    const assignedDocumentIdSet = new Set(assignedDocumentIds);
+
+    const applications = apps.map((app) => {
+      const documents = (app.applicationDocuments ?? [])
+        .slice()
+        .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+        .filter((doc) => assignedDocumentIdSet.has(doc.id))
+        .map((doc) => {
+          const attachmentFiles = (doc.files ?? []).filter(
+            (f) => !!f.uploadedAt && !!f.storageKey,
+          );
+          const uploaded =
+            attachmentFiles.length > 0 || isDocumentFileUploaded(doc);
+          return {
+            id: doc.id,
+            requirementKey: doc.requirement.requirementKey,
+            sectionTitle: doc.requirement.sectionTitle,
+            itemLabel: doc.requirement.itemLabel,
+            sortOrder: doc.requirement.sortOrder,
+            status: doc.status,
+            uploaded,
+            fileCount: attachmentFiles.length + (doc.uploadedAt && doc.storageKey ? 1 : 0),
+            storageKey: doc.storageKey ?? null,
+            bucket: doc.bucket ?? null,
+            originalFilename: doc.originalFilename ?? null,
+            mimeType: doc.mimeType ?? null,
+            sizeBytes: doc.sizeBytes ?? null,
+            uploadedAt: doc.uploadedAt ?? null,
+            uploadedByUserId: doc.uploadedByUserId ?? null,
+            notes: doc.notes ?? null,
+            assignedTo: documentAssigneesById.get(doc.id) ?? [],
+            files: attachmentFiles.map((f) => ({
+              id: f.id,
+              storageKey: f.storageKey ?? null,
+              bucket: f.bucket ?? null,
+              originalFilename: f.originalFilename ?? null,
+              mimeType: f.mimeType ?? null,
+              sizeBytes: f.sizeBytes ?? null,
+              uploadedAt: f.uploadedAt ?? null,
+              uploadedByUserId: f.uploadedByUserId ?? null,
+            })),
+          };
+        });
+
+      const uploaded = documents.filter((d) => d.uploaded).length;
+      const total = documents.length;
+
+      return {
+        applicationId: app.id,
+        applicationType: app.applicationType
+          ? {
+              id: app.applicationType.id,
+              code: app.applicationType.code,
+              name: app.applicationType.name,
+            }
+          : null,
+        summary: {
+          uploaded,
+          remaining: total - uploaded,
+          total,
+        },
+        documents,
+      };
+    });
+
+    return {
+      customerId: customer.id,
+      customerName: `${customer.firstName} ${customer.lastName}`.trim(),
+      associateId: associate.id,
+      associateName: `${associate.firstName} ${associate.lastName}`.trim(),
+      applications,
+    };
+  }
+
+  async findCustomerPipelineSteps(
+    customerId: string,
+    actor: JwtActor,
+    query: { associateId: string; applicationId?: string },
+  ): Promise<{
+    customerId: string;
+    customerName: string;
+    associateId: string;
+    associateName: string;
+    applications: Array<{
+      applicationId: string;
+      applicationType: { id: string; code: string; name: string } | null;
+      summary: {
+        completedSteps: number;
+        totalSteps: number;
+      };
+      pipelineSteps: Array<{
+        stepIndex: number;
+        title: string;
+        completedAt: Date | null;
+        assignedTo: PipelineStepAssignee[];
+      }>;
+    }>;
+  }> {
+    this.assertAdminOrAssociate(actor);
+    await this.assertCanAccessCustomer(actor, customerId);
+
+    const associateId = query.associateId.trim();
+    const associate = await this.associateProfileRepository.findOne({
+      where: { id: associateId },
+    });
+    if (!associate) {
+      throw new NotFoundException(`Associate #${associateId} not found`);
+    }
+
+    if (actor.role === UserRole.ASSOCIATE) {
+      const ownProfile = await this.associateProfileRepository.findOne({
+        where: { userId: actor.id },
+      });
+      if (!ownProfile || ownProfile.id !== associateId) {
+        throw new ForbiddenException('Associates can only load pipeline steps for their own profile');
+      }
+    }
+
+    const customer = await this.customerRepository.findOne({
+      where: { id: customerId },
+      relations: [
+        'applications',
+        'applications.applicationType',
+        'applications.pipelineProgress',
+      ],
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer #${customerId} not found`);
+    }
+
+    const assignedProgressIds =
+      await this.pipelineStepAssignmentService.getAssignedPipelineProgressIdsForAssociate(
+        associateId,
+        customerId,
+        query.applicationId,
+      );
+    const assignedProgressIdSet = new Set(assignedProgressIds);
+
+    const applicationFilter = query.applicationId?.trim();
+    const apps = (customer.applications ?? [])
+      .filter((app) => !applicationFilter || app.id === applicationFilter)
+      .slice()
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    if (applicationFilter && !apps.length) {
+      throw new NotFoundException(
+        `Application #${applicationFilter} not found for customer #${customerId}`,
+      );
+    }
+
+    const allProgressIds = apps.flatMap((app) =>
+      (app.pipelineProgress ?? []).map((step) => step.id),
+    );
+    const assigneesByProgressId =
+      actor.role === UserRole.ADMIN
+        ? await this.pipelineStepAssignmentService.getAssigneesByProgressIds(allProgressIds)
+        : new Map<string, PipelineStepAssignee[]>();
+
+    const applications = apps.map((app) => {
+      const pipelineSteps = (app.pipelineProgress ?? [])
+        .slice()
+        .sort((a, b) => a.stepIndex - b.stepIndex)
+        .filter((step) => assignedProgressIdSet.has(step.id))
+        .map((step) => ({
+          stepIndex: step.stepIndex,
+          title: step.title,
+          completedAt: step.completedAt ?? null,
+          assignedTo: assigneesByProgressId.get(step.id) ?? [],
+        }));
+
+      return {
+        applicationId: app.id,
+        applicationType: app.applicationType
+          ? {
+              id: app.applicationType.id,
+              code: app.applicationType.code,
+              name: app.applicationType.name,
+            }
+          : null,
+        summary: {
+          completedSteps: pipelineSteps.filter((s) => !!s.completedAt).length,
+          totalSteps: pipelineSteps.length,
+        },
+        pipelineSteps,
+      };
+    });
+
+    return {
+      customerId: customer.id,
+      customerName: `${customer.firstName} ${customer.lastName}`.trim(),
+      associateId: associate.id,
+      associateName: `${associate.firstName} ${associate.lastName}`.trim(),
+      applications,
+    };
+  }
+
+  async findOneDetail(customerId: string, actor: JwtActor): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>> {
     this.assertAdminOrAssociate(actor);
     await this.assertCanAccessCustomer(actor, customerId);
     const customer = await this.customerRepository.findOne({
@@ -428,12 +762,13 @@ export class CustomersService {
         'applications.pipelineProgress',
         'applications.applicationDocuments',
         'applications.applicationDocuments.requirement',
+        'applications.applicationDocuments.files',
       ],
     });
     if (!customer) {
       throw new NotFoundException(`Customer #${customerId} not found`);
     }
-    const detail = await this.toCustomerSummary(customer, true);
+    const detail = await this.toCustomerSummary(customer, true, actor);
     const [withAssociates] = await this.attachAssignedAssociates([detail]);
     return withAssociates;
   }
@@ -442,7 +777,7 @@ export class CustomersService {
     customerId: string,
     dto: UpdateCustomerDto,
     actor: JwtActor,
-  ): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
+  ): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>> {
     this.assertAdminOrAssociate(actor);
     await this.assertCanAccessCustomer(actor, customerId);
 
@@ -480,6 +815,14 @@ export class CustomersService {
     }
 
     await this.customerRepository.save(customer);
+
+    if (dto.documentAssignments?.length) {
+      await this.documentAssignmentService.applyAssignmentsOnUpdate(
+        customerId,
+        dto.documentAssignments,
+      );
+    }
+
     return this.findOneDetail(customerId, actor);
   }
 
@@ -498,7 +841,7 @@ export class CustomersService {
     customerId: string,
     dto: CreateCustomerApplicationDto,
     actor: JwtActor,
-  ): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
+  ): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>> {
     this.assertAdminOrAssociate(actor);
     await this.assertCanAccessCustomer(actor, customerId);
 
@@ -516,18 +859,18 @@ export class CustomersService {
       throw new NotFoundException(`Customer #${customerId} not found`);
     }
 
-    const savedApp = await this.applicationRepository.save(
-      this.applicationRepository.create({
-        customerId,
-        applicationTypeId: appType.id,
-        status: dto.status ?? CustomerApplicationStatus.DRAFT,
-        pipeline: dto.pipeline ?? null,
-      }),
-    );
     await this.dataSource.transaction(async (em) => {
+      const app = await em.save(
+        CustomerApplication,
+        em.create(CustomerApplication, {
+          customerId,
+          applicationTypeId: appType.id,
+          status: dto.status ?? CustomerApplicationStatus.DRAFT,
+        }),
+      );
       await this.applicationWorkflowService.instantiateForNewApplication(
         em,
-        savedApp.id,
+        app.id,
         appType.id,
       );
     });
@@ -540,7 +883,7 @@ export class CustomersService {
     applicationId: string,
     dto: UpdateCustomerApplicationDto,
     actor: JwtActor,
-  ): Promise<ReturnType<CustomersService['toCustomerSummary']>> {
+  ): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>> {
     this.assertAdminOrAssociate(actor);
     await this.assertCanAccessCustomer(actor, customerId);
 
@@ -566,9 +909,6 @@ export class CustomersService {
 
     if (dto.status !== undefined) {
       app.status = dto.status;
-    }
-    if (dto.pipeline !== undefined) {
-      app.pipeline = dto.pipeline;
     }
 
     await this.applicationRepository.save(app);
@@ -676,7 +1016,11 @@ export class CustomersService {
     if (!associateProfile) {
       return [];
     }
-    return this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id);
+    const [pipelineCustomerIds, documentCustomerIds] = await Promise.all([
+      this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id),
+      this.documentAssignmentService.getCustomerIdsForAssociate(associateProfile.id),
+    ]);
+    return [...new Set([...pipelineCustomerIds, ...documentCustomerIds])];
   }
 
   private async assertCanAccessCustomer(actor: JwtActor, customerId: string): Promise<void> {
@@ -692,11 +1036,11 @@ export class CustomersService {
     if (!associateProfile) {
       throw new ForbiddenException('You do not have access to this customer');
     }
-    const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(
-      associateProfile.id,
-      customerId,
-    );
-    if (!allowed) {
+    const [pipelineAllowed, documentAllowed] = await Promise.all([
+      this.pipelineStepAssignmentService.hasAccessToCustomer(associateProfile.id, customerId),
+      this.documentAssignmentService.hasAccessToCustomer(associateProfile.id, customerId),
+    ]);
+    if (!pipelineAllowed && !documentAllowed) {
       throw new ForbiddenException('You do not have access to this customer');
     }
   }
@@ -788,8 +1132,8 @@ export class CustomersService {
   }
 
   private async attachAssignedAssociates(
-    customers: Array<ReturnType<CustomersService['toCustomerSummary']>>,
-  ): Promise<Array<ReturnType<CustomersService['toCustomerSummary']>>> {
+    customers: Array<Awaited<ReturnType<CustomersService['toCustomerSummary']>>>,
+  ): Promise<Array<Awaited<ReturnType<CustomersService['toCustomerSummary']>>>> {
     if (!customers.length) {
       return customers;
     }
@@ -835,6 +1179,123 @@ export class CustomersService {
     return result;
   }
 
+  private assertHasApplicationTypeInput(input: {
+    applicationTypeId?: string;
+    applicationTypeCode?: string;
+    applicationTypeIds?: string[];
+    applicationTypeCodes?: string[];
+  }): void {
+    const hasSingle =
+      !!input.applicationTypeId?.trim() || !!input.applicationTypeCode?.trim();
+    const hasArray =
+      (input.applicationTypeIds?.some((id) => id?.trim()) ?? false) ||
+      (input.applicationTypeCodes?.some((code) => code?.trim()) ?? false);
+    if (!hasSingle && !hasArray) {
+      throw new BadRequestException(
+        'Provide applicationTypeId, applicationTypeCode, applicationTypeIds, or applicationTypeCodes',
+      );
+    }
+  }
+
+  private async instantiateApplicationsForCustomer(
+    em: EntityManager,
+    customerId: string,
+    appTypes: ApplicationType[],
+    defaults: {
+      status: CustomerApplicationStatus;
+    },
+  ): Promise<void> {
+    for (const appType of appTypes) {
+      const app = await em.save(
+        CustomerApplication,
+        em.create(CustomerApplication, {
+          customerId,
+          applicationTypeId: appType.id,
+          status: defaults.status,
+        }),
+      );
+      await this.applicationWorkflowService.instantiateForNewApplication(
+        em,
+        app.id,
+        appType.id,
+      );
+    }
+  }
+
+  private async resolveApplicationTypes(input: {
+    applicationTypeId?: string;
+    applicationTypeCode?: string;
+    applicationTypeIds?: string[];
+    applicationTypeCodes?: string[];
+  }): Promise<ApplicationType[]> {
+    const specs: Array<{ applicationTypeId?: string; applicationTypeCode?: string }> = [];
+
+    if (input.applicationTypeId?.trim()) {
+      specs.push({ applicationTypeId: input.applicationTypeId.trim() });
+    }
+    if (input.applicationTypeCode?.trim()) {
+      specs.push({ applicationTypeCode: input.applicationTypeCode.trim() });
+    }
+    for (const id of input.applicationTypeIds ?? []) {
+      if (id?.trim()) {
+        specs.push({ applicationTypeId: id.trim() });
+      }
+    }
+    for (const code of input.applicationTypeCodes ?? []) {
+      if (code?.trim()) {
+        specs.push({ applicationTypeCode: code.trim() });
+      }
+    }
+
+    if (!specs.length) {
+      throw new BadRequestException(
+        'Provide applicationTypeId, applicationTypeCode, applicationTypeIds, or applicationTypeCodes',
+      );
+    }
+
+    const resolved: ApplicationType[] = [];
+    for (const spec of specs) {
+      resolved.push(await this.resolveApplicationType(spec));
+    }
+    return resolved;
+  }
+
+  private async resolveApplicationTypesForLegacy(dto: CreateCustomerDto): Promise<ApplicationType[]> {
+    const specs: Array<{ applicationTypeId?: string; applicationTypeCode?: string }> = [];
+
+    if (dto.applicationTypeId?.trim()) {
+      specs.push({ applicationTypeId: dto.applicationTypeId.trim() });
+    }
+    if (dto.applicationTypeCode?.trim()) {
+      specs.push({ applicationTypeCode: dto.applicationTypeCode.trim() });
+    }
+    for (const id of dto.applicationTypeIds ?? []) {
+      if (id?.trim()) {
+        specs.push({ applicationTypeId: id.trim() });
+      }
+    }
+    for (const code of dto.applicationTypeCodes ?? []) {
+      if (code?.trim()) {
+        specs.push({ applicationTypeCode: code.trim() });
+      }
+    }
+
+    if (specs.length) {
+      const resolved: ApplicationType[] = [];
+      for (const spec of specs) {
+        resolved.push(await this.resolveApplicationType(spec));
+      }
+      return resolved;
+    }
+
+    if (!dto.applicationType?.trim()) {
+      throw new BadRequestException(
+        'Provide applicationType, applicationTypeId, applicationTypeCode, applicationTypeIds, or applicationTypeCodes (see GET /application-types).',
+      );
+    }
+    return [await this.resolveTypeFromLegacyLabel(dto.applicationType)];
+  }
+
   private async resolveApplicationType(input: {
     applicationTypeId?: string;
     applicationTypeCode?: string;
@@ -851,25 +1312,6 @@ export class CustomersService {
       return row;
     }
     throw new BadRequestException('Provide applicationTypeId or applicationTypeCode');
-  }
-
-  private async resolveApplicationTypeForLegacy(dto: CreateCustomerDto): Promise<ApplicationType> {
-    if (dto.applicationTypeId?.trim()) {
-      return this.applicationTypesService.findActiveById(dto.applicationTypeId.trim());
-    }
-    if (dto.applicationTypeCode?.trim()) {
-      const row = await this.applicationTypesService.findActiveByCode(dto.applicationTypeCode.trim());
-      if (!row) {
-        throw new BadRequestException(`Unknown or inactive application type code: ${dto.applicationTypeCode}`);
-      }
-      return row;
-    }
-    if (!dto.applicationType?.trim()) {
-      throw new BadRequestException(
-        'Provide applicationType, applicationTypeId, or applicationTypeCode (see GET /application-types).',
-      );
-    }
-    return this.resolveTypeFromLegacyLabel(dto.applicationType);
   }
 
   private async resolveTypeFromLegacyLabel(label: string): Promise<ApplicationType> {
@@ -895,12 +1337,18 @@ export class CustomersService {
   }
 
   private async uploaderRoleMapForDocuments(
-    documents: Array<{ uploadedByUserId?: string | null }>,
+    documents: Array<{
+      uploadedByUserId?: string | null;
+      files?: Array<{ uploadedByUserId?: string | null }>;
+    }>,
   ): Promise<Map<string, UserRole>> {
     const uploaderIds = [
       ...new Set(
         documents
-          .map((d) => d.uploadedByUserId?.trim())
+          .flatMap((d) => [
+            d.uploadedByUserId?.trim(),
+            ...(d.files ?? []).map((f) => f.uploadedByUserId?.trim()),
+          ])
           .filter((id): id is string => !!id),
       ),
     ];
@@ -929,48 +1377,93 @@ export class CustomersService {
     };
   }
 
-  private toCustomerSummary(customer: CustomerProfile, includeDocuments = false) {
+  private async toCustomerSummary(
+    customer: CustomerProfile,
+    includeDocuments = false,
+    actor?: JwtActor,
+  ) {
+    let assignedDocumentIds: string[] | null = null;
+    if (actor?.role === UserRole.ASSOCIATE) {
+      const profile = await this.associateProfileRepository.findOne({
+        where: { userId: actor.id },
+      });
+      assignedDocumentIds = profile
+        ? await this.documentAssignmentService.getAssignedDocumentIdsForAssociate(
+            profile.id,
+            customer.id,
+          )
+        : [];
+    }
+
+    const documentAssigneesById =
+      includeDocuments && actor?.role !== UserRole.ASSOCIATE
+        ? await this.documentAssignmentService.getAssigneesByDocumentIds(
+            (customer.applications ?? []).flatMap((app) =>
+              (app.applicationDocuments ?? []).map((doc) => doc.id),
+            ),
+          )
+        : new Map<string, DocumentAssignee[]>();
+
     const applications = (customer.applications ?? [])
-      .slice()
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((a) => ({
-        applicationId: a.id,
-        applicationType: a.applicationType
-          ? {
-              id: a.applicationType.id,
-              name: a.applicationType.name,
-            }
-          : null,
-        progress: {
-          completedSteps: (a.pipelineProgress ?? []).filter((p) => !!p.completedAt).length,
-          totalSteps: (a.pipelineProgress ?? []).length,
-        },
-        pipelineSteps: (a.pipelineProgress ?? [])
-          .slice()
-          .sort((p1, p2) => p1.stepIndex - p2.stepIndex)
-          .map((p) => ({
-            stepIndex: p.stepIndex,
-            title: p.title,
-            completedAt: p.completedAt ?? null,
-            assignedTo: [] as PipelineStepAssignee[],
-          })),
-        assignedTo: [] as PipelineStepAssignee[],
-        documents: includeDocuments
-          ? (a.applicationDocuments ?? [])
-              .slice()
-              .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
-              .map((d) => ({
-                id: d.id,
-                requirementKey: d.requirement.requirementKey,
-                itemLabel: d.requirement.itemLabel,
-                status: d.status,
-                storageKey: d.storageKey ?? null,
-                bucket: d.bucket ?? null,
-                originalFilename: d.originalFilename ?? null,
-                mimeType: d.mimeType ?? null,
-                uploadedAt: d.uploadedAt ?? null,
-              }))
-          : undefined,
+        .slice()
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .map((a) => ({
+          applicationId: a.id,
+          applicationType: a.applicationType
+            ? {
+                id: a.applicationType.id,
+                name: a.applicationType.name,
+              }
+            : null,
+          progress: {
+            completedSteps: (a.pipelineProgress ?? []).filter((p) => !!p.completedAt).length,
+            totalSteps: (a.pipelineProgress ?? []).length,
+          },
+          pipelineSteps: (a.pipelineProgress ?? [])
+            .slice()
+            .sort((p1, p2) => p1.stepIndex - p2.stepIndex)
+            .map((p) => ({
+              stepIndex: p.stepIndex,
+              title: p.title,
+              completedAt: p.completedAt ?? null,
+              assignedTo: [] as PipelineStepAssignee[],
+            })),
+          assignedTo: [] as PipelineStepAssignee[],
+          documents: includeDocuments
+            ? (a.applicationDocuments ?? [])
+                .slice()
+                .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+                .filter((d) => {
+                  if (assignedDocumentIds === null) {
+                    return true;
+                  }
+                  return assignedDocumentIds.includes(d.id);
+                })
+                .map((d) => ({
+                  id: d.id,
+                  requirementKey: d.requirement.requirementKey,
+                  itemLabel: d.requirement.itemLabel,
+                  status: d.status,
+                  storageKey: d.storageKey ?? null,
+                  bucket: d.bucket ?? null,
+                  originalFilename: d.originalFilename ?? null,
+                  mimeType: d.mimeType ?? null,
+                  uploadedAt: d.uploadedAt ?? null,
+                  assignedTo: documentAssigneesById.get(d.id) ?? [],
+                  files: (d.files ?? [])
+                    .filter((f) => !!f.uploadedAt && !!f.storageKey)
+                    .map((f) => ({
+                      id: f.id,
+                      storageKey: f.storageKey ?? null,
+                      bucket: f.bucket ?? null,
+                      originalFilename: f.originalFilename ?? null,
+                      mimeType: f.mimeType ?? null,
+                      sizeBytes: f.sizeBytes ?? null,
+                      uploadedAt: f.uploadedAt ?? null,
+                      uploadedByUserId: f.uploadedByUserId ?? null,
+                    })),
+                }))
+            : undefined,
       }));
 
     return {

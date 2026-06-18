@@ -21,16 +21,19 @@ const customer_activity_entity_1 = require("./entities/customer-activity.entity"
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const pipeline_step_assignment_service_1 = require("../customers/pipeline-step-assignment.service");
+const document_assignment_service_1 = require("../customers/document-assignment.service");
 let ActivitiesService = class ActivitiesService {
     activityRepository;
     customerRepository;
     associateRepository;
     pipelineStepAssignmentService;
-    constructor(activityRepository, customerRepository, associateRepository, pipelineStepAssignmentService) {
+    documentAssignmentService;
+    constructor(activityRepository, customerRepository, associateRepository, pipelineStepAssignmentService, documentAssignmentService) {
         this.activityRepository = activityRepository;
         this.customerRepository = customerRepository;
         this.associateRepository = associateRepository;
         this.pipelineStepAssignmentService = pipelineStepAssignmentService;
+        this.documentAssignmentService = documentAssignmentService;
     }
     async create(customerId, dto, actor) {
         const customer = await this.customerRepository.findOne({ where: { id: customerId } });
@@ -101,8 +104,11 @@ let ActivitiesService = class ActivitiesService {
         return associate.id;
     }
     async assertAssociateAssignedToCustomer(associateId, customerId) {
-        const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(associateId, customerId);
-        if (!allowed) {
+        const [pipelineAllowed, documentAllowed] = await Promise.all([
+            this.pipelineStepAssignmentService.hasAccessToCustomer(associateId, customerId),
+            this.documentAssignmentService.hasAccessToCustomer(associateId, customerId),
+        ]);
+        if (!pipelineAllowed && !documentAllowed) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
     }
@@ -116,6 +122,7 @@ exports.ActivitiesService = ActivitiesService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        pipeline_step_assignment_service_1.PipelineStepAssignmentService])
+        pipeline_step_assignment_service_1.PipelineStepAssignmentService,
+        document_assignment_service_1.DocumentAssignmentService])
 ], ActivitiesService);
 //# sourceMappingURL=activities.service.js.map

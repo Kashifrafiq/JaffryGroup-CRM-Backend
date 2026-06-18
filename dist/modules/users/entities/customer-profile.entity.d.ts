@@ -11,7 +11,6 @@ export declare class CustomerProfile {
     lastName: string;
     phoneNumber?: string;
     property?: string;
-    applicationType?: string;
     applications?: CustomerApplication[];
     address?: string;
     dateOfBirth?: Date;

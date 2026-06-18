@@ -34,9 +34,6 @@ export class CustomerApplication {
   @Column({ type: 'varchar', length: 32, default: CustomerApplicationStatus.DRAFT })
   status!: CustomerApplicationStatus;
 
-  @Column({ type: 'jsonb', nullable: true })
-  pipeline?: Record<string, unknown> | null;
-
   @OneToMany('CustomerApplicationPipelineProgress', 'customerApplication')
   pipelineProgress?: import('../../applications/entities/customer-application-pipeline-progress.entity').CustomerApplicationPipelineProgress[];
 

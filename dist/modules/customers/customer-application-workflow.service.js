@@ -21,27 +21,33 @@ const customer_document_visibility_1 = require("./customer-document-visibility")
 const customer_application_entity_1 = require("./entities/customer-application.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const pipeline_step_assignment_service_1 = require("./pipeline-step-assignment.service");
+const document_assignment_service_1 = require("./document-assignment.service");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const customer_application_pipeline_progress_entity_1 = require("../applications/entities/customer-application-pipeline-progress.entity");
 const customer_application_document_entity_1 = require("../applications/entities/customer-application-document.entity");
+const customer_application_document_file_entity_1 = require("../applications/entities/customer-application-document-file.entity");
 const customer_application_document_status_enum_1 = require("../applications/entities/customer-application-document-status.enum");
 const s3_storage_service_1 = require("../applications/s3-storage.service");
 let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowService {
     applicationRepository;
     pipelineProgressRepository;
     applicationDocumentRepository;
+    applicationDocumentFileRepository;
     associateProfileRepository;
     pipelineStepAssignmentService;
+    documentAssignmentService;
     customerProfileRepository;
     userRepository;
     s3StorageService;
-    constructor(applicationRepository, pipelineProgressRepository, applicationDocumentRepository, associateProfileRepository, pipelineStepAssignmentService, customerProfileRepository, userRepository, s3StorageService) {
+    constructor(applicationRepository, pipelineProgressRepository, applicationDocumentRepository, applicationDocumentFileRepository, associateProfileRepository, pipelineStepAssignmentService, documentAssignmentService, customerProfileRepository, userRepository, s3StorageService) {
         this.applicationRepository = applicationRepository;
         this.pipelineProgressRepository = pipelineProgressRepository;
         this.applicationDocumentRepository = applicationDocumentRepository;
+        this.applicationDocumentFileRepository = applicationDocumentFileRepository;
         this.associateProfileRepository = associateProfileRepository;
         this.pipelineStepAssignmentService = pipelineStepAssignmentService;
+        this.documentAssignmentService = documentAssignmentService;
         this.customerProfileRepository = customerProfileRepository;
         this.userRepository = userRepository;
         this.s3StorageService = s3StorageService;
@@ -57,9 +63,16 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             'pipelineProgress',
             'applicationDocuments',
             'applicationDocuments.requirement',
+            'applicationDocuments.files',
             'applicationType',
         ]);
-        return this.buildWorkflowPayload(app);
+        const assignedDocumentIds = await this.assignedDocumentIdsForActor(actor, cid);
+        const assignedPipelineProgressIds = await this.assignedPipelineProgressIdsForActor(actor, cid, aid);
+        return this.buildWorkflowPayload(app, undefined, new Map(), {
+            assignedDocumentIds,
+            assignedPipelineProgressIds,
+            includeDocumentAssignees: actor.role === user_role_enum_1.UserRole.ADMIN,
+        });
     }
     async assignPipelineStepAssociates(customerId, applicationId, stepIndex, associateIds) {
         const progress = await this.pipelineStepAssignmentService.resolvePipelineProgress(this.tid(customerId), this.tid(applicationId), stepIndex);
@@ -91,6 +104,7 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             'pipelineProgress',
             'applicationDocuments',
             'applicationDocuments.requirement',
+            'applicationDocuments.files',
             'applicationType',
         ]));
     }
@@ -99,9 +113,13 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const aid = this.tid(applicationId);
         const did = this.tid(documentId);
         await this.assertCanAccessApplication(actor, cid, aid);
+        const app = await this.loadApplication(cid, aid, ['applicationType']);
         const doc = await this.loadDocumentRow(cid, aid, did, ['requirement']);
         if (actor.role === user_role_enum_1.UserRole.CUSTOMER) {
             await this.assertCustomerCanUploadDocument(doc, actor.id);
+        }
+        else if (actor.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            await this.assertCanAccessDocument(actor, did);
         }
         if (doc.status === customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.WAIVED) {
             throw new common_1.BadRequestException('Document was waived; re-open before upload.');
@@ -110,30 +128,31 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         if (!customer) {
             throw new common_1.NotFoundException(`Customer #${cid} not found`);
         }
+        const pendingFile = await this.applicationDocumentFileRepository.save(this.applicationDocumentFileRepository.create({
+            customerApplicationDocumentId: doc.id,
+            mimeType: dto.contentType,
+            originalFilename: dto.filename,
+        }));
         const key = this.s3StorageService.buildDocumentObjectKey({
             customerId: cid,
             firstName: customer.firstName,
             lastName: customer.lastName,
-            documentId: doc.id,
+            applicationId: aid,
+            applicationName: app.applicationType.name,
+            documentName: doc.requirement.itemLabel,
+            fileId: pendingFile.id,
             originalFilename: dto.filename,
         });
         const signed = await this.s3StorageService.createPresignedPutUrl(key, dto.contentType);
-        doc.storageKey = key;
-        doc.bucket = signed.bucket;
-        doc.mimeType = dto.contentType;
-        doc.originalFilename = dto.filename;
-        if (actor.role !== user_role_enum_1.UserRole.CUSTOMER) {
-            doc.uploadedAt = null;
-            doc.uploadedByUserId = null;
-            doc.sizeBytes = null;
-            doc.status = customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.PENDING;
-        }
-        await this.applicationDocumentRepository.save(doc);
+        pendingFile.storageKey = key;
+        pendingFile.bucket = signed.bucket;
+        await this.applicationDocumentFileRepository.save(pendingFile);
         return {
             uploadUrl: signed.uploadUrl,
             bucket: signed.bucket,
             key: signed.key,
             expiresIn: signed.expiresIn,
+            fileId: pendingFile.id,
         };
     }
     async presignDocumentUploadForCustomerUser(applicationId, documentId, dto, actor) {
@@ -148,29 +167,61 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const aid = this.tid(applicationId);
         const did = this.tid(documentId);
         await this.assertCanAccessApplication(actor, cid, aid);
-        const doc = await this.loadDocumentRow(cid, aid, did, ['requirement']);
+        const app = await this.loadApplication(cid, aid, ['applicationType']);
+        const doc = await this.loadDocumentRow(cid, aid, did, ['requirement', 'files']);
         if (actor.role === user_role_enum_1.UserRole.CUSTOMER) {
             await this.assertCustomerCanUploadDocument(doc, actor.id);
+        }
+        else if (actor.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            await this.assertCanAccessDocument(actor, did);
         }
         const customer = await this.customerProfileRepository.findOne({ where: { id: cid } });
         if (!customer) {
             throw new common_1.NotFoundException(`Customer #${cid} not found`);
         }
-        const expectedPrefix = this.s3StorageService.buildCustomerDocumentsFolder(customer.id, customer.firstName, customer.lastName) + '/';
-        if (!dto.storageKey.startsWith(expectedPrefix)) {
-            throw new common_1.BadRequestException('storageKey does not match this customer');
+        if (dto.fileId?.trim()) {
+            const file = await this.loadDocumentFileRow(did, dto.fileId.trim());
+            const expectedPrefix = this.s3StorageService.buildDocumentRequirementPrefix({
+                customerId: cid,
+                firstName: customer.firstName,
+                lastName: customer.lastName,
+                applicationId: aid,
+                applicationName: app.applicationType.name,
+                documentName: doc.requirement.itemLabel,
+            });
+            if (!dto.storageKey.startsWith(expectedPrefix)) {
+                throw new common_1.BadRequestException('storageKey does not match this document requirement');
+            }
+            if (file.storageKey && file.storageKey !== dto.storageKey) {
+                throw new common_1.BadRequestException('storageKey does not match presigned key for this file');
+            }
+            file.storageKey = dto.storageKey;
+            file.originalFilename = dto.originalFilename;
+            file.mimeType = dto.mimeType;
+            file.sizeBytes = dto.sizeBytes;
+            file.uploadedAt = new Date();
+            file.uploadedByUserId = actor.id;
+            await this.applicationDocumentFileRepository.save(file);
+            doc.status = customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.UPLOADED;
+            await this.applicationDocumentRepository.save(doc);
         }
-        if (doc.storageKey && doc.storageKey !== dto.storageKey) {
-            throw new common_1.BadRequestException('storageKey does not match presigned key for this document');
+        else {
+            const expectedPrefix = this.s3StorageService.buildCustomerDocumentsFolder(customer.id, customer.firstName, customer.lastName) + '/';
+            if (!dto.storageKey.startsWith(expectedPrefix)) {
+                throw new common_1.BadRequestException('storageKey does not match this customer');
+            }
+            if (doc.storageKey && doc.storageKey !== dto.storageKey) {
+                throw new common_1.BadRequestException('storageKey does not match presigned key for this document');
+            }
+            doc.storageKey = dto.storageKey;
+            doc.originalFilename = dto.originalFilename;
+            doc.mimeType = dto.mimeType;
+            doc.sizeBytes = dto.sizeBytes;
+            doc.status = customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.UPLOADED;
+            doc.uploadedAt = new Date();
+            doc.uploadedByUserId = actor.id;
+            await this.applicationDocumentRepository.save(doc);
         }
-        doc.storageKey = dto.storageKey;
-        doc.originalFilename = dto.originalFilename;
-        doc.mimeType = dto.mimeType;
-        doc.sizeBytes = dto.sizeBytes;
-        doc.status = customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.UPLOADED;
-        doc.uploadedAt = new Date();
-        doc.uploadedByUserId = actor.id;
-        await this.applicationDocumentRepository.save(doc);
         if (actor.role === user_role_enum_1.UserRole.CUSTOMER) {
             return this.getCustomerWorkflow(cid, aid, actor);
         }
@@ -189,6 +240,9 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const did = this.tid(documentId);
         await this.assertCanAccessApplication(actor, cid, aid);
         const doc = await this.loadDocumentRow(cid, aid, did, []);
+        if (actor.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            await this.assertCanAccessDocument(actor, did);
+        }
         if (dto.status === customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.UPLOADED) {
             throw new common_1.BadRequestException('Use presign + complete flow to mark uploaded');
         }
@@ -201,18 +255,28 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         await this.applicationDocumentRepository.save(doc);
         return this.getWorkflow(cid, aid, actor);
     }
-    async getDocumentReadUrl(customerId, applicationId, documentId, actor) {
+    async getDocumentReadUrl(customerId, applicationId, documentId, actor, fileId) {
         const cid = this.tid(customerId);
         const aid = this.tid(applicationId);
         const did = this.tid(documentId);
         await this.assertCanAccessApplication(actor, cid, aid);
-        const doc = await this.loadDocumentRow(cid, aid, did, []);
+        const doc = await this.loadDocumentRow(cid, aid, did, ['files']);
+        if (actor.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            await this.assertCanAccessDocument(actor, did);
+        }
+        if (fileId?.trim()) {
+            const file = await this.loadDocumentFileRow(did, fileId.trim());
+            if (!file.storageKey) {
+                throw new common_1.BadRequestException('Document file is not uploaded yet');
+            }
+            return this.s3StorageService.createPresignedGetUrl(file.storageKey);
+        }
         if (!doc.storageKey) {
             throw new common_1.BadRequestException('Document file is not uploaded yet');
         }
         return this.s3StorageService.createPresignedGetUrl(doc.storageKey);
     }
-    async getDocumentReadUrlForCustomerUser(applicationId, documentId, actor) {
+    async getDocumentReadUrlForCustomerUser(applicationId, documentId, actor, fileId) {
         if (actor.role !== user_role_enum_1.UserRole.CUSTOMER) {
             throw new common_1.ForbiddenException('Only customer can use this endpoint');
         }
@@ -221,7 +285,15 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const aid = this.tid(applicationId);
         const did = this.tid(documentId);
         await this.assertCanAccessApplication(actor, cid, aid);
-        const doc = await this.loadDocumentRow(cid, aid, did, []);
+        const doc = await this.loadDocumentRow(cid, aid, did, ['files']);
+        if (fileId?.trim()) {
+            const file = await this.loadDocumentFileRow(did, fileId.trim());
+            await this.assertCustomerCanPreviewFile(file, actor.id);
+            if (!file.storageKey) {
+                throw new common_1.BadRequestException('Document file is not uploaded yet');
+            }
+            return this.s3StorageService.createPresignedGetUrl(file.storageKey);
+        }
         await this.assertCustomerCanPreviewDocument(doc, actor.id);
         if (!doc.storageKey) {
             throw new common_1.BadRequestException('Document file is not uploaded yet');
@@ -239,14 +311,27 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             'pipelineProgress',
             'applicationDocuments',
             'applicationDocuments.requirement',
+            'applicationDocuments.files',
             'applicationType',
         ]);
         const uploaderRoleByUserId = await this.uploaderRoleMapForDocuments(app.applicationDocuments ?? []);
         return this.buildWorkflowPayload(app, actor.id, uploaderRoleByUserId);
     }
-    async buildWorkflowPayload(app, customerUserId, uploaderRoleByUserId = new Map()) {
-        const progressRows = (app.pipelineProgress ?? []).slice().sort((a, b) => a.stepIndex - b.stepIndex);
+    async buildWorkflowPayload(app, customerUserId, uploaderRoleByUserId = new Map(), options) {
+        const progressRows = (app.pipelineProgress ?? [])
+            .slice()
+            .sort((a, b) => a.stepIndex - b.stepIndex)
+            .filter((p) => {
+            if (options?.assignedPipelineProgressIds == null) {
+                return true;
+            }
+            return options.assignedPipelineProgressIds.includes(p.id);
+        });
         const assigneesByProgressId = await this.pipelineStepAssignmentService.getAssigneesByProgressIds(progressRows.map((p) => p.id));
+        const documentIds = (app.applicationDocuments ?? []).map((d) => d.id);
+        const documentAssigneesById = options?.includeDocumentAssignees
+            ? await this.documentAssignmentService.getAssigneesByDocumentIds(documentIds)
+            : new Map();
         const steps = progressRows.map((p) => ({
             stepIndex: p.stepIndex,
             title: p.title,
@@ -256,10 +341,35 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const documents = (app.applicationDocuments ?? [])
             .slice()
             .sort((a, b) => a.requirement.sortOrder - b.requirement.sortOrder)
+            .filter((d) => {
+            if (options?.assignedDocumentIds == null) {
+                return true;
+            }
+            return options.assignedDocumentIds.includes(d.id);
+        })
             .map((d) => {
-            const uploadedByCustomer = customerUserId
+            const attachmentFiles = (d.files ?? []).filter((f) => !!f.uploadedAt && !!f.storageKey);
+            const legacyUploadedByCustomer = customerUserId && d.uploadedAt
                 ? (0, customer_document_visibility_1.isUploadedByCustomerUser)(d, customerUserId, uploaderRoleByUserId)
                 : undefined;
+            const customerFiles = customerUserId
+                ? (0, customer_document_visibility_1.mapVisibleCustomerFiles)(d.files ?? [], customerUserId, uploaderRoleByUserId)
+                : undefined;
+            const adminFiles = !customerUserId
+                ? attachmentFiles.map((file) => ({
+                    id: file.id,
+                    originalFilename: file.originalFilename ?? null,
+                    mimeType: file.mimeType ?? null,
+                    sizeBytes: file.sizeBytes ?? null,
+                    uploadedAt: file.uploadedAt ?? null,
+                    uploadedByUserId: file.uploadedByUserId ?? null,
+                    storageKey: file.storageKey ?? null,
+                }))
+                : undefined;
+            const uploadedByCustomer = customerUserId !== undefined
+                ? (customerFiles?.length ?? 0) > 0 || !!legacyUploadedByCustomer
+                : undefined;
+            const hasAnyUpload = attachmentFiles.length > 0 || (!!d.uploadedAt && !!d.storageKey);
             const row = {
                 id: d.id,
                 status: d.status,
@@ -267,19 +377,24 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
                 sectionTitle: d.requirement.sectionTitle,
                 itemLabel: d.requirement.itemLabel,
                 sortOrder: d.requirement.sortOrder,
+                uploaded: hasAnyUpload,
+                fileCount: attachmentFiles.length + (d.uploadedAt && d.storageKey ? 1 : 0),
                 originalFilename: d.originalFilename ?? null,
                 mimeType: d.mimeType ?? null,
                 sizeBytes: d.sizeBytes ?? null,
                 uploadedAt: d.uploadedAt ?? null,
                 canPreview: customerUserId
-                    ? (0, customer_document_visibility_1.canCustomerPreviewDocument)(d, customerUserId, uploaderRoleByUserId)
+                    ? (customerFiles?.some((f) => f.canPreview) ?? false) ||
+                        (0, customer_document_visibility_1.canCustomerPreviewDocument)(d, customerUserId, uploaderRoleByUserId)
                     : true,
+                files: customerUserId ? customerFiles : adminFiles,
             };
             if (!customerUserId) {
                 row.storageKey = d.storageKey ?? null;
                 row.bucket = d.bucket ?? null;
                 row.uploadedByUserId = d.uploadedByUserId ?? null;
                 row.notes = d.notes ?? null;
+                row.assignedTo = documentAssigneesById.get(d.id) ?? [];
             }
             if (uploadedByCustomer !== undefined) {
                 row.uploadedByMe = uploadedByCustomer;
@@ -323,6 +438,15 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         }
         return doc;
     }
+    async loadDocumentFileRow(documentId, fileId) {
+        const file = await this.applicationDocumentFileRepository.findOne({
+            where: { id: fileId, customerApplicationDocumentId: documentId },
+        });
+        if (!file) {
+            throw new common_1.NotFoundException(`File #${fileId} not found for this document`);
+        }
+        return file;
+    }
     async assertCanAccess(actor, customerId) {
         if (actor.role === user_role_enum_1.UserRole.ADMIN) {
             return;
@@ -346,8 +470,11 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         if (!associateProfile) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
-        const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(associateProfile.id, customerId);
-        if (!allowed) {
+        const [pipelineAllowed, documentAllowed] = await Promise.all([
+            this.pipelineStepAssignmentService.hasAccessToCustomer(associateProfile.id, customerId),
+            this.documentAssignmentService.hasAccessToCustomer(associateProfile.id, customerId),
+        ]);
+        if (!pipelineAllowed && !documentAllowed) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
     }
@@ -363,8 +490,51 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             throw new common_1.ForbiddenException('You do not have access to this application');
         }
         const allowed = await this.pipelineStepAssignmentService.hasAccessToApplication(associateProfile.id, applicationId);
-        if (!allowed) {
+        const documentAllowed = await this.documentAssignmentService.hasAccessToApplication(associateProfile.id, applicationId);
+        if (!allowed && !documentAllowed) {
             throw new common_1.ForbiddenException('You do not have access to this application');
+        }
+    }
+    async assignedDocumentIdsForActor(actor, customerId) {
+        if (actor.role !== user_role_enum_1.UserRole.ASSOCIATE) {
+            return null;
+        }
+        const associateProfile = await this.associateProfileRepository.findOne({
+            where: { userId: actor.id },
+        });
+        if (!associateProfile) {
+            return [];
+        }
+        return this.documentAssignmentService.getAssignedDocumentIdsForAssociate(associateProfile.id, customerId);
+    }
+    async assignedPipelineProgressIdsForActor(actor, customerId, applicationId) {
+        if (actor.role !== user_role_enum_1.UserRole.ASSOCIATE) {
+            return null;
+        }
+        const associateProfile = await this.associateProfileRepository.findOne({
+            where: { userId: actor.id },
+        });
+        if (!associateProfile) {
+            return [];
+        }
+        return this.pipelineStepAssignmentService.getAssignedPipelineProgressIdsForAssociate(associateProfile.id, customerId, applicationId);
+    }
+    async assertCanAccessDocument(actor, documentId) {
+        if (actor.role === user_role_enum_1.UserRole.ADMIN) {
+            return;
+        }
+        if (actor.role !== user_role_enum_1.UserRole.ASSOCIATE) {
+            throw new common_1.ForbiddenException('You do not have access to this document');
+        }
+        const associateProfile = await this.associateProfileRepository.findOne({
+            where: { userId: actor.id },
+        });
+        if (!associateProfile) {
+            throw new common_1.ForbiddenException('You do not have access to this document');
+        }
+        const allowed = await this.documentAssignmentService.hasAccessToDocument(associateProfile.id, documentId);
+        if (!allowed) {
+            throw new common_1.ForbiddenException('You are not assigned to this document');
         }
     }
     async assertCanModifyPipelineStep(actor, applicationId, stepIndex) {
@@ -385,7 +555,10 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
     async uploaderRoleMapForDocuments(documents) {
         const uploaderIds = [
             ...new Set(documents
-                .map((d) => d.uploadedByUserId?.trim())
+                .flatMap((d) => [
+                d.uploadedByUserId?.trim(),
+                ...(d.files ?? []).map((f) => f.uploadedByUserId?.trim()),
+            ])
                 .filter((id) => !!id)),
         ];
         if (!uploaderIds.length) {
@@ -398,7 +571,7 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         return new Map(users.map((u) => [u.id, u.role]));
     }
     async assertCustomerCanUploadDocument(doc, customerUserId) {
-        if (!doc.uploadedAt) {
+        if (!doc.uploadedAt || !doc.storageKey) {
             return;
         }
         const roleMap = await this.uploaderRoleMapForDocuments([doc]);
@@ -409,6 +582,14 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
     async assertCustomerCanPreviewDocument(doc, customerUserId) {
         const roleMap = await this.uploaderRoleMapForDocuments([doc]);
         if (!(0, customer_document_visibility_1.canCustomerPreviewDocument)(doc, customerUserId, roleMap)) {
+            throw new common_1.ForbiddenException('You can only preview documents you uploaded');
+        }
+    }
+    async assertCustomerCanPreviewFile(file, customerUserId) {
+        const roleMap = await this.uploaderRoleMapForDocuments([
+            { uploadedByUserId: file.uploadedByUserId },
+        ]);
+        if (!(0, customer_document_visibility_1.canCustomerPreviewFile)(file, customerUserId, roleMap)) {
             throw new common_1.ForbiddenException('You can only preview documents you uploaded');
         }
     }
@@ -429,14 +610,17 @@ exports.CustomerApplicationWorkflowService = CustomerApplicationWorkflowService 
     __param(0, (0, typeorm_1.InjectRepository)(customer_application_entity_1.CustomerApplication)),
     __param(1, (0, typeorm_1.InjectRepository)(customer_application_pipeline_progress_entity_1.CustomerApplicationPipelineProgress)),
     __param(2, (0, typeorm_1.InjectRepository)(customer_application_document_entity_1.CustomerApplicationDocument)),
-    __param(3, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
-    __param(5, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
-    __param(6, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(3, (0, typeorm_1.InjectRepository)(customer_application_document_file_entity_1.CustomerApplicationDocumentFile)),
+    __param(4, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
+    __param(7, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
+    __param(8, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
+        typeorm_2.Repository,
         pipeline_step_assignment_service_1.PipelineStepAssignmentService,
+        document_assignment_service_1.DocumentAssignmentService,
         typeorm_2.Repository,
         typeorm_2.Repository,
         s3_storage_service_1.S3StorageService])

@@ -10,6 +10,7 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
+const path_1 = require("path");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const auth_module_1 = require("./modules/auth/auth.module");
@@ -52,6 +53,8 @@ exports.AppModule = AppModule = __decorate([
                         database,
                         autoLoadEntities: true,
                         synchronize: isTruthy(configService.get('DB_SYNCHRONIZE'), true),
+                        migrations: [(0, path_1.join)(__dirname, 'migrations', '*.{js,ts}')],
+                        migrationsRun: isTruthy(configService.get('DB_RUN_MIGRATIONS'), false),
                         ssl: useSsl ? { rejectUnauthorized } : false,
                     };
                 },

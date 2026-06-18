@@ -22,11 +22,24 @@ export declare class S3StorageService {
         expiresIn: number;
     }>;
     buildCustomerDocumentsFolder(customerId: string, firstName: string, lastName: string): string;
+    buildApplicationFolder(applicationId: string, applicationName: string): string;
+    buildRequirementFolder(documentName: string): string;
     buildDocumentObjectKey(params: {
         customerId: string;
         firstName: string;
         lastName: string;
-        documentId: string;
+        applicationId: string;
+        applicationName: string;
+        documentName: string;
+        fileId: string;
         originalFilename: string;
+    }): string;
+    buildDocumentRequirementPrefix(params: {
+        customerId: string;
+        firstName: string;
+        lastName: string;
+        applicationId: string;
+        applicationName: string;
+        documentName: string;
     }): string;
 }

@@ -21,7 +21,6 @@ let CustomerApplication = class CustomerApplication {
     applicationType;
     applicationTypeId;
     status;
-    pipeline;
     pipelineProgress;
     applicationDocuments;
     createdAt;
@@ -54,10 +53,6 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 32, default: customer_application_status_enum_1.CustomerApplicationStatus.DRAFT }),
     __metadata("design:type", String)
 ], CustomerApplication.prototype, "status", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: 'jsonb', nullable: true }),
-    __metadata("design:type", Object)
-], CustomerApplication.prototype, "pipeline", void 0);
 __decorate([
     (0, typeorm_1.OneToMany)('CustomerApplicationPipelineProgress', 'customerApplication'),
     __metadata("design:type", Array)

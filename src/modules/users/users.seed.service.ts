@@ -170,13 +170,7 @@ export class UsersSeedService implements OnApplicationBootstrap {
   }
 
   private async loadLegacyProfileRows(): Promise<LegacyProfileRow[]> {
-    try {
-      return await this.usersRepository.query(
-        'SELECT id, role, "firstName", "lastName", "phoneNumber", address, "dateOfBirth", "profilePhoto" FROM users',
-      );
-    } catch {
-      return [];
-    }
+    return [];
   }
 
   private async dropLegacyProfileTables(): Promise<void> {
@@ -211,10 +205,10 @@ export class UsersSeedService implements OnApplicationBootstrap {
 
       await this.usersRepository.query(
         `INSERT INTO users (
-          id, email, password, "firstName", "lastName", "phoneNumber", address, "dateOfBirth", "profilePhoto", role, "isActive", "createdAt", "updatedAt"
+          id, email, password, role, "isActive", "createdAt", "updatedAt"
         )
         SELECT
-          u.id, u.email, u.password, u."firstName", u."lastName", u."phoneNumber", u.address, u."dateOfBirth", u."profilePhoto", u.role, u."isActive", u."createdAt", u."updatedAt"
+          u.id, u.email, u.password, u.role, u."isActive", u."createdAt", u."updatedAt"
         FROM "user" u
         WHERE NOT EXISTS (
           SELECT 1 FROM users nu WHERE nu.id = u.id OR nu.email = u.email

@@ -22,6 +22,8 @@ const customers_service_1 = require("./customers.service");
 const create_customer_api_dto_1 = require("./dto/create-customer-api.dto");
 const invite_customer_dto_1 = require("./dto/invite-customer.dto");
 const list_customers_query_dto_1 = require("./dto/list-customers-query.dto");
+const list_customer_documents_query_dto_1 = require("./dto/list-customer-documents-query.dto");
+const list_customer_pipeline_steps_query_dto_1 = require("./dto/list-customer-pipeline-steps-query.dto");
 const update_customer_dto_1 = require("./dto/update-customer.dto");
 const create_customer_application_dto_1 = require("./dto/create-customer-application.dto");
 const update_customer_application_dto_1 = require("./dto/update-customer-application.dto");
@@ -50,6 +52,12 @@ let CustomersController = class CustomersController {
     }
     myDocuments(req) {
         return this.customersService.findMyDocuments(req.user.id);
+    }
+    findPipelineSteps(customerId, query, req) {
+        return this.customersService.findCustomerPipelineSteps(customerId, this.actor(req), query);
+    }
+    findDocuments(customerId, query, req) {
+        return this.customersService.findCustomerDocuments(customerId, this.actor(req), query);
     }
     findOne(customerId, req) {
         return this.customersService.findOneDetail(customerId, this.actor(req));
@@ -122,6 +130,26 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], CustomersController.prototype, "myDocuments", null);
+__decorate([
+    (0, common_1.Get)(':customerId/pipeline-steps'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, list_customer_pipeline_steps_query_dto_1.ListCustomerPipelineStepsQueryDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "findPipelineSteps", null);
+__decorate([
+    (0, common_1.Get)(':customerId/documents'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, list_customer_documents_query_dto_1.ListCustomerDocumentsQueryDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "findDocuments", null);
 __decorate([
     (0, common_1.Get)(':customerId'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),

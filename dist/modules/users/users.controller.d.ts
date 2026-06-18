@@ -24,7 +24,13 @@ export declare class UsersController {
         name: string;
         phoneNumber?: string;
         property?: string;
-        applicationType?: string;
+        applications?: {
+            applicationId: string;
+            applicationType: {
+                id: string;
+                name: string;
+            } | null;
+        }[];
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;
@@ -46,7 +52,13 @@ export declare class UsersController {
         name: string;
         phoneNumber?: string;
         property?: string;
-        applicationType?: string;
+        applications?: {
+            applicationId: string;
+            applicationType: {
+                id: string;
+                name: string;
+            } | null;
+        }[];
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;
@@ -67,7 +79,13 @@ export declare class UsersController {
         name: string;
         phoneNumber?: string;
         property?: string;
-        applicationType?: string;
+        applications?: {
+            applicationId: string;
+            applicationType: {
+                id: string;
+                name: string;
+            } | null;
+        }[];
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;
@@ -86,7 +104,13 @@ export declare class UsersController {
         name: string;
         phoneNumber?: string;
         property?: string;
-        applicationType?: string;
+        applications?: {
+            applicationId: string;
+            applicationType: {
+                id: string;
+                name: string;
+            } | null;
+        }[];
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;
@@ -105,7 +129,13 @@ export declare class UsersController {
         name: string;
         phoneNumber?: string;
         property?: string;
-        applicationType?: string;
+        applications?: {
+            applicationId: string;
+            applicationType: {
+                id: string;
+                name: string;
+            } | null;
+        }[];
         address?: string;
         dateOfBirth?: Date;
         profilePhoto?: string;

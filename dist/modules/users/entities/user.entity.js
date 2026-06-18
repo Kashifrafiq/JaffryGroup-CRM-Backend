@@ -19,12 +19,6 @@ let User = class User {
     id;
     email;
     password;
-    firstName;
-    lastName;
-    phoneNumber;
-    address;
-    dateOfBirth;
-    profilePhoto;
     role;
     isActive;
     adminProfile;
@@ -46,30 +40,6 @@ __decorate([
     (0, typeorm_1.Column)({ select: false }),
     __metadata("design:type", String)
 ], User.prototype, "password", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
-    __metadata("design:type", String)
-], User.prototype, "firstName", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
-    __metadata("design:type", String)
-], User.prototype, "lastName", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
-    __metadata("design:type", String)
-], User.prototype, "phoneNumber", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
-    __metadata("design:type", String)
-], User.prototype, "address", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
-    __metadata("design:type", Date)
-], User.prototype, "dateOfBirth", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
-    __metadata("design:type", String)
-], User.prototype, "profilePhoto", void 0);
 __decorate([
     (0, typeorm_1.Column)({
         type: 'enum',

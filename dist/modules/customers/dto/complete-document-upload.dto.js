@@ -13,12 +13,18 @@ exports.CompleteDocumentUploadDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class CompleteDocumentUploadDto {
+    fileId;
     storageKey;
     originalFilename;
     mimeType;
     sizeBytes;
 }
 exports.CompleteDocumentUploadDto = CompleteDocumentUploadDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], CompleteDocumentUploadDto.prototype, "fileId", void 0);
 __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     (0, class_validator_1.IsString)(),

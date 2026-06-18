@@ -1,5 +1,17 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsArray,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { CustomerApplicationStatus } from '../entities/customer-application-status.enum';
+import { DocumentAssignmentOnCreateDto } from './document-assignment-on-create.dto';
 
 export class CreateCustomerApiDto {
   @IsNotEmpty()
@@ -29,12 +41,19 @@ export class CreateCustomerApiDto {
   applicationTypeCode?: string;
 
   @IsOptional()
-  @IsEnum(CustomerApplicationStatus)
-  status?: CustomerApplicationStatus;
+  @IsArray()
+  @IsUUID('4', { each: true })
+  applicationTypeIds?: string[];
 
   @IsOptional()
-  @IsObject()
-  pipeline?: Record<string, unknown>;
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  applicationTypeCodes?: string[];
+
+  @IsOptional()
+  @IsEnum(CustomerApplicationStatus)
+  status?: CustomerApplicationStatus;
 
   @IsOptional()
   @IsString()
@@ -47,4 +66,11 @@ export class CreateCustomerApiDto {
   @IsOptional()
   @IsUUID()
   associateId?: string;
+
+  /** Assign associates to specific document requirements (by requirementKey). */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DocumentAssignmentOnCreateDto)
+  documentAssignments?: DocumentAssignmentOnCreateDto[];
 }

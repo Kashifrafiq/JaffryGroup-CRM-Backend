@@ -132,7 +132,6 @@ export class S3StorageService {
 
   /**
    * Object key prefix for a customer's uploads: `documents/{First_Last}_{id8}`.
-   * `id8` avoids collisions when two customers share the same display name.
    */
   buildCustomerDocumentsFolder(customerId: string, firstName: string, lastName: string): string {
     const nameSlug = S3StorageService.sanitizePathSegment(`${firstName}_${lastName}`.trim(), 120);
@@ -140,23 +139,63 @@ export class S3StorageService {
     return `documents/${nameSlug}_${idShort}`;
   }
 
+  buildApplicationFolder(applicationId: string, applicationName: string): string {
+    const nameSlug = S3StorageService.sanitizePathSegment(applicationName.trim(), 80);
+    const idShort = applicationId.replace(/-/g, '').slice(0, 8);
+    return `${nameSlug}_${idShort}`;
+  }
+
+  buildRequirementFolder(documentName: string): string {
+    return S3StorageService.sanitizePathSegment(documentName.trim(), 120);
+  }
+
   /**
-   * Full object key: `documents/{customerFolder}/{documentRowId}-{originalFilename}`.
+   * Full object key:
+   * documents/{customerFolder}/{applicationFolder}/{requirementFolder}/{fileId}-{filename}
    */
   buildDocumentObjectKey(params: {
     customerId: string;
     firstName: string;
     lastName: string;
-    documentId: string;
+    applicationId: string;
+    applicationName: string;
+    documentName: string;
+    fileId: string;
     originalFilename: string;
   }): string {
-    const folder = this.buildCustomerDocumentsFolder(
+    const customerFolder = this.buildCustomerDocumentsFolder(
       params.customerId,
       params.firstName,
       params.lastName,
     );
+    const applicationFolder = this.buildApplicationFolder(
+      params.applicationId,
+      params.applicationName,
+    );
+    const requirementFolder = this.buildRequirementFolder(params.documentName);
     const base = basename(params.originalFilename.replace(/\\/g, '/'));
     const safeName = S3StorageService.sanitizePathSegment(base, 200);
-    return `${folder}/${params.documentId}-${safeName}`;
+    return `${customerFolder}/${applicationFolder}/${requirementFolder}/${params.fileId}-${safeName}`;
+  }
+
+  buildDocumentRequirementPrefix(params: {
+    customerId: string;
+    firstName: string;
+    lastName: string;
+    applicationId: string;
+    applicationName: string;
+    documentName: string;
+  }): string {
+    const customerFolder = this.buildCustomerDocumentsFolder(
+      params.customerId,
+      params.firstName,
+      params.lastName,
+    );
+    const applicationFolder = this.buildApplicationFolder(
+      params.applicationId,
+      params.applicationName,
+    );
+    const requirementFolder = this.buildRequirementFolder(params.documentName);
+    return `${customerFolder}/${applicationFolder}/${requirementFolder}/`;
   }
 }

@@ -114,11 +114,27 @@ let S3StorageService = S3StorageService_1 = class S3StorageService {
         const idShort = customerId.replace(/-/g, '').slice(0, 8);
         return `documents/${nameSlug}_${idShort}`;
     }
+    buildApplicationFolder(applicationId, applicationName) {
+        const nameSlug = S3StorageService_1.sanitizePathSegment(applicationName.trim(), 80);
+        const idShort = applicationId.replace(/-/g, '').slice(0, 8);
+        return `${nameSlug}_${idShort}`;
+    }
+    buildRequirementFolder(documentName) {
+        return S3StorageService_1.sanitizePathSegment(documentName.trim(), 120);
+    }
     buildDocumentObjectKey(params) {
-        const folder = this.buildCustomerDocumentsFolder(params.customerId, params.firstName, params.lastName);
+        const customerFolder = this.buildCustomerDocumentsFolder(params.customerId, params.firstName, params.lastName);
+        const applicationFolder = this.buildApplicationFolder(params.applicationId, params.applicationName);
+        const requirementFolder = this.buildRequirementFolder(params.documentName);
         const base = (0, path_1.basename)(params.originalFilename.replace(/\\/g, '/'));
         const safeName = S3StorageService_1.sanitizePathSegment(base, 200);
-        return `${folder}/${params.documentId}-${safeName}`;
+        return `${customerFolder}/${applicationFolder}/${requirementFolder}/${params.fileId}-${safeName}`;
+    }
+    buildDocumentRequirementPrefix(params) {
+        const customerFolder = this.buildCustomerDocumentsFolder(params.customerId, params.firstName, params.lastName);
+        const applicationFolder = this.buildApplicationFolder(params.applicationId, params.applicationName);
+        const requirementFolder = this.buildRequirementFolder(params.documentName);
+        return `${customerFolder}/${applicationFolder}/${requirementFolder}/`;
     }
 };
 exports.S3StorageService = S3StorageService;

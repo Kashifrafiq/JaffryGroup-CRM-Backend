@@ -48,12 +48,6 @@ export class CustomerProfile {
   @Column({ type: 'varchar', length: 1024, nullable: true })
   property?: string;
 
-  /**
-   * @deprecated Use `customer_applications` + `application_types`. Kept for legacy rows only.
-   */
-  @Column({ type: 'varchar', length: 128, nullable: true })
-  applicationType?: string;
-
   /** Resolved at runtime via entity name to avoid circular imports. */
   @OneToMany('CustomerApplication', 'customer')
   applications?: CustomerApplication[];

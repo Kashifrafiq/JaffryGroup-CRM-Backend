@@ -13,6 +13,8 @@ exports.CustomerApplicationDocument = void 0;
 const typeorm_1 = require("typeorm");
 const application_document_requirement_entity_1 = require("./application-document-requirement.entity");
 const customer_application_document_status_enum_1 = require("./customer-application-document-status.enum");
+const user_entity_1 = require("../../users/entities/user.entity");
+const customer_application_document_file_entity_1 = require("./customer-application-document-file.entity");
 let CustomerApplicationDocument = class CustomerApplicationDocument {
     id;
     customerApplicationId;
@@ -27,7 +29,9 @@ let CustomerApplicationDocument = class CustomerApplicationDocument {
     sizeBytes;
     uploadedAt;
     uploadedByUserId;
+    uploadedByUser;
     notes;
+    files;
     createdAt;
     updatedAt;
 };
@@ -91,9 +95,18 @@ __decorate([
     __metadata("design:type", Object)
 ], CustomerApplicationDocument.prototype, "uploadedByUserId", void 0);
 __decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { onDelete: 'SET NULL', nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'uploadedByUserId' }),
+    __metadata("design:type", Object)
+], CustomerApplicationDocument.prototype, "uploadedByUser", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'text', nullable: true }),
     __metadata("design:type", Object)
 ], CustomerApplicationDocument.prototype, "notes", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)(() => customer_application_document_file_entity_1.CustomerApplicationDocumentFile, (file) => file.customerApplicationDocument),
+    __metadata("design:type", Array)
+], CustomerApplicationDocument.prototype, "files", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -153,12 +154,14 @@ export class CustomerApplicationWorkflowController {
   getDocumentReadUrlForMe(
     @Param('applicationId') applicationId: string,
     @Param('documentId') documentId: string,
+    @Query('fileId') fileId: string | undefined,
     @Request() req: RequestWithJwtUser,
   ) {
     return this.workflowService.getDocumentReadUrlForCustomerUser(
       applicationId,
       documentId,
       this.actor(req),
+      fileId,
     );
   }
 
@@ -220,6 +223,7 @@ export class CustomerApplicationWorkflowController {
     @Param('customerId') customerId: string,
     @Param('applicationId') applicationId: string,
     @Param('documentId') documentId: string,
+    @Query('fileId') fileId: string | undefined,
     @Request() req: RequestWithJwtUser,
   ) {
     return this.workflowService.getDocumentReadUrl(
@@ -227,6 +231,7 @@ export class CustomerApplicationWorkflowController {
       applicationId,
       documentId,
       this.actor(req),
+      fileId,
     );
   }
 }

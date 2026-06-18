@@ -19,6 +19,7 @@ const typeorm_2 = require("typeorm");
 const user_role_enum_1 = require("../users/entities/user-role.enum");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const pipeline_step_assignment_service_1 = require("../customers/pipeline-step-assignment.service");
+const document_assignment_service_1 = require("../customers/document-assignment.service");
 const customer_profile_entity_1 = require("../users/entities/customer-profile.entity");
 const customer_reminder_entity_1 = require("./entities/customer-reminder.entity");
 const customer_reminder_enums_1 = require("./entities/customer-reminder.enums");
@@ -27,11 +28,13 @@ let RemindersService = class RemindersService {
     customerRepository;
     associateRepository;
     pipelineStepAssignmentService;
-    constructor(reminderRepository, customerRepository, associateRepository, pipelineStepAssignmentService) {
+    documentAssignmentService;
+    constructor(reminderRepository, customerRepository, associateRepository, pipelineStepAssignmentService, documentAssignmentService) {
         this.reminderRepository = reminderRepository;
         this.customerRepository = customerRepository;
         this.associateRepository = associateRepository;
         this.pipelineStepAssignmentService = pipelineStepAssignmentService;
+        this.documentAssignmentService = documentAssignmentService;
     }
     async create(customerId, dto, actor) {
         await this.assertCanAccessCustomer(actor, customerId);
@@ -100,8 +103,11 @@ let RemindersService = class RemindersService {
             throw new common_1.ForbiddenException('Insufficient permissions');
         }
         const associateId = await this.associateIdForUser(actor.id);
-        const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(associateId, customerId);
-        if (!allowed) {
+        const [pipelineAllowed, documentAllowed] = await Promise.all([
+            this.pipelineStepAssignmentService.hasAccessToCustomer(associateId, customerId),
+            this.documentAssignmentService.hasAccessToCustomer(associateId, customerId),
+        ]);
+        if (!pipelineAllowed && !documentAllowed) {
             throw new common_1.ForbiddenException('You do not have access to this customer');
         }
     }
@@ -125,6 +131,7 @@ exports.RemindersService = RemindersService = __decorate([
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
-        pipeline_step_assignment_service_1.PipelineStepAssignmentService])
+        pipeline_step_assignment_service_1.PipelineStepAssignmentService,
+        document_assignment_service_1.DocumentAssignmentService])
 ], RemindersService);
 //# sourceMappingURL=reminders.service.js.map

@@ -54,8 +54,8 @@ let CustomerApplicationWorkflowController = class CustomerApplicationWorkflowCon
     presignUpload(customerId, applicationId, documentId, dto, req) {
         return this.workflowService.presignDocumentUpload(customerId, applicationId, documentId, dto, this.actor(req));
     }
-    getDocumentReadUrlForMe(applicationId, documentId, req) {
-        return this.workflowService.getDocumentReadUrlForCustomerUser(applicationId, documentId, this.actor(req));
+    getDocumentReadUrlForMe(applicationId, documentId, fileId, req) {
+        return this.workflowService.getDocumentReadUrlForCustomerUser(applicationId, documentId, this.actor(req), fileId);
     }
     completeUploadForMe(applicationId, documentId, dto, req) {
         return this.workflowService.completeDocumentUploadForCustomerUser(applicationId, documentId, dto, this.actor(req));
@@ -66,8 +66,8 @@ let CustomerApplicationWorkflowController = class CustomerApplicationWorkflowCon
     patchDocument(customerId, applicationId, documentId, dto, req) {
         return this.workflowService.patchDocument(customerId, applicationId, documentId, dto, this.actor(req));
     }
-    getDocumentReadUrl(customerId, applicationId, documentId, req) {
-        return this.workflowService.getDocumentReadUrl(customerId, applicationId, documentId, this.actor(req));
+    getDocumentReadUrl(customerId, applicationId, documentId, fileId, req) {
+        return this.workflowService.getDocumentReadUrl(customerId, applicationId, documentId, this.actor(req), fileId);
     }
 };
 exports.CustomerApplicationWorkflowController = CustomerApplicationWorkflowController;
@@ -154,9 +154,10 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),
     __param(0, (0, common_1.Param)('applicationId')),
     __param(1, (0, common_1.Param)('documentId')),
-    __param(2, (0, common_1.Request)()),
+    __param(2, (0, common_1.Query)('fileId')),
+    __param(3, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:paramtypes", [String, String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], CustomerApplicationWorkflowController.prototype, "getDocumentReadUrlForMe", null);
 __decorate([
@@ -200,9 +201,10 @@ __decorate([
     __param(0, (0, common_1.Param)('customerId')),
     __param(1, (0, common_1.Param)('applicationId')),
     __param(2, (0, common_1.Param)('documentId')),
-    __param(3, (0, common_1.Request)()),
+    __param(3, (0, common_1.Query)('fileId')),
+    __param(4, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, Object]),
+    __metadata("design:paramtypes", [String, String, String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], CustomerApplicationWorkflowController.prototype, "getDocumentReadUrl", null);
 exports.CustomerApplicationWorkflowController = CustomerApplicationWorkflowController = __decorate([

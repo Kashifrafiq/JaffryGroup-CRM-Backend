@@ -16,7 +16,6 @@ class CreateCustomerApplicationDto {
     applicationTypeId;
     applicationTypeCode;
     status;
-    pipeline;
 }
 exports.CreateCustomerApplicationDto = CreateCustomerApplicationDto;
 __decorate([
@@ -37,9 +36,4 @@ __decorate([
     (0, class_validator_1.IsEnum)(customer_application_status_enum_1.CustomerApplicationStatus),
     __metadata("design:type", String)
 ], CreateCustomerApplicationDto.prototype, "status", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsObject)(),
-    __metadata("design:type", Object)
-], CreateCustomerApplicationDto.prototype, "pipeline", void 0);
 //# sourceMappingURL=create-customer-application.dto.js.map

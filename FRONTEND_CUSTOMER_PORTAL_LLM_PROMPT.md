@@ -24,9 +24,9 @@ The backend enforces rules; the frontend must call the correct **`/customers/me/
 
 | Rule | Detail |
 |------|--------|
-| Visibility | Customer **never** sees documents uploaded by admin/associate. Those rows are omitted from `GET /customers/me/documents`. |
+| Visibility | Customer sees **all** requirement rows. `files[]` lists **only** files they uploaded — team files are never listed. |
 | Preview | Customer can preview **only** when `canPreview === true` (own upload with file in storage). |
-| Upload | Customer can upload to **pending** slots. If team already uploaded that requirement → API returns **403**. |
+| Upload | Customer can upload **multiple files** per requirement (presign once per file). Blocked only when team uploaded via **legacy** single-file row on the parent document (403). |
 | Routes | Customer app uses **`/customers/me/...`** only — not `/customers/:customerId/...`. |
 | Storage | File bytes go **directly to DigitalOcean Spaces** via presigned URL — not through the API body. |
 
@@ -67,6 +67,14 @@ Content-Type: application/json
 ## TypeScript types (`types/customer-portal.ts`)
 
 ```typescript
+export type CustomerDocumentFile = {
+  id: string;
+  originalFilename: string | null;
+  uploadedAt: string | null;
+  uploadedByMe: boolean;
+  canPreview: boolean;
+};
+
 export type CustomerDocumentRow = {
   id: string;
   requirementKey: string;
@@ -78,6 +86,8 @@ export type CustomerDocumentRow = {
   uploadedAt: string | null;
   canPreview: boolean;
   originalFilename: string | null;
+  fileCount: number;
+  files: CustomerDocumentFile[];
 };
 
 export type CustomerDocumentsResponse = {
@@ -99,6 +109,7 @@ export type PresignUploadResponse = {
   bucket: string;
   key: string;
   expiresIn: number;
+  fileId: string;
 };
 
 export type PresignUploadBody = {
@@ -107,6 +118,7 @@ export type PresignUploadBody = {
 };
 
 export type CompleteUploadBody = {
+  fileId: string;
   storageKey: string;
   originalFilename: string;
   mimeType: string;
@@ -142,9 +154,11 @@ Returns `CustomerDocumentsResponse`.
 |-------|-----|
 | `itemLabel` / `sectionTitle` | Title / group |
 | `uploaded === false` | Show **Upload** button |
-| `uploaded === true` && `uploadedByMe === false` | Row visible; show status as fulfilled by team; **no** preview/download |
-| `canPreview === true` | Show **Preview** / **Download** button |
-| `originalFilename` | Show filename only when `uploadedByMe` |
+| `uploaded === true` && `uploadedByMe === false` | Requirement fulfilled by team; **no** preview; customer may still **add more files** unless legacy team upload blocks presign (403) |
+| `files[]` | List of **customer-owned** attachments; render each with preview when `canPreview` |
+| `fileCount` | Count of customer-visible files (includes legacy single-file row when `uploadedByMe`) |
+| `canPreview === true` | Show **Preview** / **Download** on row or per file in `files[]` |
+| `originalFilename` | Legacy convenience field — prefer `files[].originalFilename` for multi-file rows |
 
 All requirement rows are returned. Team uploads use `uploaded: true`, `uploadedByMe: false`, `canPreview: false`.
 
@@ -153,9 +167,11 @@ All requirement rows are returned. Team uploads use `uploaded: true`, `uploadedB
 ### Preview (customer-owned files only)
 
 ```http
-GET /customers/me/applications/:applicationId/documents/:documentId/read-url
+GET /customers/me/applications/:applicationId/documents/:documentId/read-url?fileId=<uuid>
 Authorization: Bearer <customer-token>
 ```
+
+`fileId` is **required** for multi-file attachments (from presign response or `files[].id`). Omit `fileId` only for **legacy** single-file rows still stored on the parent document.
 
 Returns `ReadUrlResponse`. Open `readUrl` in new tab, iframe, or fetch for viewer.
 
@@ -171,7 +187,9 @@ That route is **admin/associate only**.
 
 ---
 
-### Upload flow (3 steps)
+### Upload flow (3 steps per file)
+
+Each file upload is a separate presign → PUT → complete cycle. A requirement like "Financial Statements" can hold **many** files.
 
 #### Step 1 — Presign
 
@@ -186,11 +204,11 @@ Content-Type: application/json
 }
 ```
 
-Response: `PresignUploadResponse` — save `key` as `storageKey` for step 3.
+Response: `PresignUploadResponse` — save **`fileId`** and **`key`** (`storageKey`) for step 3.
 
 **Errors:**
 
-- **403** — Team already uploaded this requirement: show "Uploaded by your team"
+- **403** — Legacy team upload on parent row blocks customer upload: show "Uploaded by your team"
 - **400** — Document waived
 
 #### Step 2 — PUT file to Spaces (browser → storage, not API)
@@ -215,6 +233,7 @@ Authorization: Bearer <customer-token>
 Content-Type: application/json
 
 {
+  "fileId": "<fileId from presign>",
   "storageKey": "<key from presign>",
   "originalFilename": "bank-statement.pdf",
   "mimeType": "application/pdf",
@@ -224,7 +243,7 @@ Content-Type: application/json
 
 `sizeBytes` must be a **string** in JSON (backend accepts number coerced to string).
 
-After success, refetch `GET /customers/me/documents`. Row should have `uploadedByMe: true`, `canPreview: true`.
+After success, refetch `GET /customers/me/documents`. Row should include the new entry in `files[]` with `uploadedByMe: true`, `canPreview: true`. Use **Add another file** to presign again for the same `documentId`.
 
 ---
 
@@ -232,7 +251,7 @@ After success, refetch `GET /customers/me/documents`. Row should have `uploadedB
 
 ```http
 GET /customers/me
-→ { id, name, email, applicationType }
+→ { id, name, email, applications: [{ applicationId, applicationType: { id, name } }] }
 
 GET /customers/me/pipeline
 → pipeline steps progress (read-only, no document preview here)
@@ -260,21 +279,22 @@ Customers **cannot** use:
 - Tabs or sections per `applications[]`
 - Per `documents[]` row:
   - Label: `itemLabel`
-  - Status: pending vs uploaded by me
-  - Actions: Upload | Preview (gated by flags)
+  - Status: pending vs uploaded (by anyone) vs uploaded by me
+  - List `files[]` with filename + per-file preview
+  - Actions: **Upload** / **Add another file** | **Preview** per file (gated by `canPreview`)
 - Summary chips: `summary.uploaded`, `summary.remaining`, `summary.total`
 
 ### Screen C — Upload modal / drawer
 
 1. User picks file → derive `filename`, `contentType`
-2. Presign → PUT to `uploadUrl` → Complete
+2. Presign → save `fileId` + `key` → PUT to `uploadUrl` → Complete with `fileId`
 3. Loading states on each step; show error toast on failure
-4. On success, refresh list
+4. On success, refresh list; offer "Add another file" on same requirement
 
 ### Screen D — Preview
 
-1. Only if `canPreview`
-2. `GET .../read-url` → open `readUrl`
+1. Only if `canPreview` on row or file
+2. `GET .../read-url?fileId=<files[].id>` → open `readUrl`
 3. Handle image/pdf in viewer or download link
 
 ---
@@ -322,6 +342,7 @@ export async function uploadCustomerDocument(params: {
       method: 'POST',
       headers,
       body: JSON.stringify({
+        fileId: presign.fileId,
         storageKey: presign.key,
         originalFilename: file.name,
         mimeType: file.type || 'application/octet-stream',
@@ -351,6 +372,8 @@ Parse Nest errors: `{ "message": string | string[], "statusCode": number }`.
 ---
 
 ## Admin vs customer apps
+
+Admin/associate users upload documents **for customers** in the CRM app (`/customers/:customerId/...`). This customer portal prompt remains customer-only and must call only `/customers/me/...`.
 
 | Feature | Customer app | Admin/associate app |
 |---------|--------------|---------------------|
@@ -382,7 +405,7 @@ Fix in DO Control Panel → Space → CORS:
 
 1. Customer login works; token stored.
 2. Documents list loads via `GET /customers/me/documents` only.
-3. Team-uploaded documents **never** appear in the list.
+3. Team-uploaded documents can mark requirement status as fulfilled, but team files **never** appear in `files[]` for customer app.
 4. Preview button only when `canPreview === true`; uses `GET /customers/me/.../read-url`.
 5. Upload uses presign → PUT → complete on `me` routes.
 6. After upload, list shows `uploadedByMe: true` and preview works.

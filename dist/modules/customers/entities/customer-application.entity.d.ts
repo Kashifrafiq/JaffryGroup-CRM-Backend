@@ -8,7 +8,6 @@ export declare class CustomerApplication {
     applicationType: ApplicationType;
     applicationTypeId: string;
     status: CustomerApplicationStatus;
-    pipeline?: Record<string, unknown> | null;
     pipelineProgress?: import('../../applications/entities/customer-application-pipeline-progress.entity').CustomerApplicationPipelineProgress[];
     applicationDocuments?: import('../../applications/entities/customer-application-document.entity').CustomerApplicationDocument[];
     createdAt: Date;

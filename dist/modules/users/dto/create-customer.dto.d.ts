@@ -7,6 +7,8 @@ export declare class CreateCustomerDto {
     applicationType?: string;
     applicationTypeId?: string;
     applicationTypeCode?: string;
+    applicationTypeIds?: string[];
+    applicationTypeCodes?: string[];
     role?: UserRole;
     address?: string;
     profilePhoto?: string;

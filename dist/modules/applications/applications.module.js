@@ -14,6 +14,7 @@ const application_pipeline_step_template_entity_1 = require("./entities/applicat
 const application_document_requirement_entity_1 = require("./entities/application-document-requirement.entity");
 const customer_application_pipeline_progress_entity_1 = require("./entities/customer-application-pipeline-progress.entity");
 const customer_application_document_entity_1 = require("./entities/customer-application-document.entity");
+const customer_application_document_file_entity_1 = require("./entities/customer-application-document-file.entity");
 const application_types_controller_1 = require("./application-types.controller");
 const application_types_service_1 = require("./application-types.service");
 const applications_seed_service_1 = require("./applications.seed.service");
@@ -32,6 +33,7 @@ exports.ApplicationsModule = ApplicationsModule = __decorate([
                 application_document_requirement_entity_1.ApplicationDocumentRequirement,
                 customer_application_pipeline_progress_entity_1.CustomerApplicationPipelineProgress,
                 customer_application_document_entity_1.CustomerApplicationDocument,
+                customer_application_document_file_entity_1.CustomerApplicationDocumentFile,
             ]),
         ],
         controllers: [application_types_controller_1.ApplicationTypesController],

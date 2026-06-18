@@ -1,4 +1,4 @@
-import { IsEnum, IsObject, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { CustomerApplicationStatus } from '../entities/customer-application-status.enum';
 
 export class UpdateCustomerApplicationDto {
@@ -14,8 +14,4 @@ export class UpdateCustomerApplicationDto {
   @IsOptional()
   @IsEnum(CustomerApplicationStatus)
   status?: CustomerApplicationStatus;
-
-  @IsOptional()
-  @IsObject()
-  pipeline?: Record<string, unknown> | null;
 }

@@ -57,6 +57,7 @@ const associate_profile_entity_1 = require("./entities/associate-profile.entity"
 const customer_profile_entity_1 = require("./entities/customer-profile.entity");
 const customers_service_1 = require("../customers/customers.service");
 const pipeline_step_assignment_service_1 = require("../customers/pipeline-step-assignment.service");
+const document_assignment_service_1 = require("../customers/document-assignment.service");
 let UsersService = class UsersService {
     userRepository;
     adminProfileRepository;
@@ -64,13 +65,15 @@ let UsersService = class UsersService {
     customerProfileRepository;
     customersService;
     pipelineStepAssignmentService;
-    constructor(userRepository, adminProfileRepository, associateProfileRepository, customerProfileRepository, customersService, pipelineStepAssignmentService) {
+    documentAssignmentService;
+    constructor(userRepository, adminProfileRepository, associateProfileRepository, customerProfileRepository, customersService, pipelineStepAssignmentService, documentAssignmentService) {
         this.userRepository = userRepository;
         this.adminProfileRepository = adminProfileRepository;
         this.associateProfileRepository = associateProfileRepository;
         this.customerProfileRepository = customerProfileRepository;
         this.customersService = customersService;
         this.pipelineStepAssignmentService = pipelineStepAssignmentService;
+        this.documentAssignmentService = documentAssignmentService;
     }
     async create(createUserDto, createdBy) {
         if (createUserDto.role === user_role_enum_1.UserRole.ASSOCIATE || createUserDto.role === user_role_enum_1.UserRole.CUSTOMER) {
@@ -98,7 +101,13 @@ let UsersService = class UsersService {
     }
     async findAll() {
         const users = await this.userRepository.find({
-            relations: ['adminProfile', 'associateProfile', 'customerProfile'],
+            relations: [
+                'adminProfile',
+                'associateProfile',
+                'customerProfile',
+                'customerProfile.applications',
+                'customerProfile.applications.applicationType',
+            ],
         });
         return users.map((user) => this.toUserView(user, this.getProfileFromUser(user)));
     }
@@ -115,19 +124,30 @@ let UsersService = class UsersService {
         if (!associateProfile) {
             return [];
         }
-        const customerIds = await this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id);
+        const [pipelineCustomerIds, documentCustomerIds] = await Promise.all([
+            this.pipelineStepAssignmentService.getCustomerIdsForAssociate(associateProfile.id),
+            this.documentAssignmentService.getCustomerIdsForAssociate(associateProfile.id),
+        ]);
+        const customerIds = [...new Set([...pipelineCustomerIds, ...documentCustomerIds])];
         if (!customerIds.length) {
             return [];
         }
         const customers = await this.customerProfileRepository.find({
             where: { id: (0, typeorm_2.In)(customerIds) },
+            relations: ['applications', 'applications.applicationType'],
         });
         return customers.map((c) => this.toStandaloneCustomerView(c));
     }
     async findOne(id) {
         const user = await this.userRepository.findOne({
             where: { id },
-            relations: ['adminProfile', 'associateProfile', 'customerProfile'],
+            relations: [
+                'adminProfile',
+                'associateProfile',
+                'customerProfile',
+                'customerProfile.applications',
+                'customerProfile.applications.applicationType',
+            ],
         });
         if (!user)
             throw new common_1.NotFoundException(`User #${id} not found`);
@@ -136,7 +156,13 @@ let UsersService = class UsersService {
     async update(id, updateUserDto) {
         const user = await this.userRepository.findOne({
             where: { id },
-            relations: ['adminProfile', 'associateProfile', 'customerProfile'],
+            relations: [
+                'adminProfile',
+                'associateProfile',
+                'customerProfile',
+                'customerProfile.applications',
+                'customerProfile.applications.applicationType',
+            ],
         });
         if (!user)
             throw new common_1.NotFoundException(`User #${id} not found`);
@@ -262,7 +288,22 @@ let UsersService = class UsersService {
                 throw new common_1.ForbiddenException('Unsupported role');
         }
     }
+    toCustomerApplications(customer) {
+        return (customer.applications ?? [])
+            .slice()
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .map((app) => ({
+            applicationId: app.id,
+            applicationType: app.applicationType
+                ? {
+                    id: app.applicationType.id,
+                    name: app.applicationType.name,
+                }
+                : null,
+        }));
+    }
     toStandaloneCustomerView(customer) {
+        const applications = this.toCustomerApplications(customer);
         return {
             id: customer.id,
             email: customer.email ?? '',
@@ -273,7 +314,7 @@ let UsersService = class UsersService {
             name: `${customer.firstName} ${customer.lastName}`.trim(),
             phoneNumber: customer.phoneNumber,
             property: customer.property,
-            applicationType: customer.applicationType,
+            applications,
             address: customer.address,
             dateOfBirth: customer.dateOfBirth,
             profilePhoto: customer.profilePhoto,
@@ -287,6 +328,7 @@ let UsersService = class UsersService {
         if (!profile) {
             throw new common_1.NotFoundException('User profile not found');
         }
+        const customerApplications = profile instanceof customer_profile_entity_1.CustomerProfile ? this.toCustomerApplications(profile) : undefined;
         return {
             id: user.id,
             email: user.email,
@@ -297,7 +339,7 @@ let UsersService = class UsersService {
             name: `${profile.firstName} ${profile.lastName}`.trim(),
             phoneNumber: profile.phoneNumber,
             property: profile instanceof customer_profile_entity_1.CustomerProfile ? profile.property : undefined,
-            applicationType: profile instanceof customer_profile_entity_1.CustomerProfile ? profile.applicationType : undefined,
+            applications: customerApplications,
             address: profile.address,
             dateOfBirth: profile.dateOfBirth,
             profilePhoto: profile.profilePhoto,
@@ -334,6 +376,7 @@ exports.UsersService = UsersService = __decorate([
         typeorm_2.Repository,
         typeorm_2.Repository,
         customers_service_1.CustomersService,
-        pipeline_step_assignment_service_1.PipelineStepAssignmentService])
+        pipeline_step_assignment_service_1.PipelineStepAssignmentService,
+        document_assignment_service_1.DocumentAssignmentService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

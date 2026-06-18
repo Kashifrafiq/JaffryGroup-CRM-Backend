@@ -3,6 +3,8 @@ import { CustomersService } from './customers.service';
 import { CreateCustomerApiDto } from './dto/create-customer-api.dto';
 import { InviteCustomerDto } from './dto/invite-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
+import { ListCustomerDocumentsQueryDto } from './dto/list-customer-documents-query.dto';
+import { ListCustomerPipelineStepsQueryDto } from './dto/list-customer-pipeline-steps-query.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerApplicationDto } from './dto/create-customer-application.dto';
 import { UpdateCustomerApplicationDto } from './dto/update-customer-application.dto';
@@ -48,6 +50,17 @@ export declare class CustomersController {
                 originalFilename: string | null;
                 mimeType: string | null;
                 uploadedAt: Date | null;
+                assignedTo: import("./document-assignment.service").DocumentAssignee[];
+                files: {
+                    id: string;
+                    storageKey: string | null;
+                    bucket: string | null;
+                    originalFilename: string | null;
+                    mimeType: string | null;
+                    sizeBytes: string | null;
+                    uploadedAt: Date | null;
+                    uploadedByUserId: string | null;
+                }[];
             }[] | undefined;
         }[];
     }>;
@@ -91,6 +104,17 @@ export declare class CustomersController {
                 originalFilename: string | null;
                 mimeType: string | null;
                 uploadedAt: Date | null;
+                assignedTo: import("./document-assignment.service").DocumentAssignee[];
+                files: {
+                    id: string;
+                    storageKey: string | null;
+                    bucket: string | null;
+                    originalFilename: string | null;
+                    mimeType: string | null;
+                    sizeBytes: string | null;
+                    uploadedAt: Date | null;
+                    uploadedByUserId: string | null;
+                }[];
             }[] | undefined;
         }[];
     }[]>;
@@ -98,7 +122,13 @@ export declare class CustomersController {
         id: string;
         name: string;
         email: string;
-        applicationType: string | null;
+        applications: Array<{
+            applicationId: string;
+            applicationType: {
+                id: string;
+                name: string;
+            } | null;
+        }>;
     }>;
     myPipeline(req: RequestWithJwtUser): Promise<{
         customerId: string;
@@ -140,6 +170,86 @@ export declare class CustomersController {
                 uploadedAt: Date | null;
                 canPreview: boolean;
                 originalFilename: string | null;
+                fileCount: number;
+                files: Array<{
+                    id: string;
+                    originalFilename: string | null;
+                    uploadedAt: Date | null;
+                    uploadedByMe: boolean;
+                    canPreview: boolean;
+                }>;
+            }>;
+        }>;
+    }>;
+    findPipelineSteps(customerId: string, query: ListCustomerPipelineStepsQueryDto, req: RequestWithJwtUser): Promise<{
+        customerId: string;
+        customerName: string;
+        associateId: string;
+        associateName: string;
+        applications: Array<{
+            applicationId: string;
+            applicationType: {
+                id: string;
+                code: string;
+                name: string;
+            } | null;
+            summary: {
+                completedSteps: number;
+                totalSteps: number;
+            };
+            pipelineSteps: Array<{
+                stepIndex: number;
+                title: string;
+                completedAt: Date | null;
+                assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+            }>;
+        }>;
+    }>;
+    findDocuments(customerId: string, query: ListCustomerDocumentsQueryDto, req: RequestWithJwtUser): Promise<{
+        customerId: string;
+        customerName: string;
+        associateId: string;
+        associateName: string;
+        applications: Array<{
+            applicationId: string;
+            applicationType: {
+                id: string;
+                code: string;
+                name: string;
+            } | null;
+            summary: {
+                uploaded: number;
+                remaining: number;
+                total: number;
+            };
+            documents: Array<{
+                id: string;
+                requirementKey: string;
+                sectionTitle: string;
+                itemLabel: string;
+                sortOrder: number;
+                status: string;
+                uploaded: boolean;
+                fileCount: number;
+                storageKey: string | null;
+                bucket: string | null;
+                originalFilename: string | null;
+                mimeType: string | null;
+                sizeBytes: string | null;
+                uploadedAt: Date | null;
+                uploadedByUserId: string | null;
+                notes: string | null;
+                assignedTo: import("./document-assignment.service").DocumentAssignee[];
+                files: Array<{
+                    id: string;
+                    storageKey: string | null;
+                    bucket: string | null;
+                    originalFilename: string | null;
+                    mimeType: string | null;
+                    sizeBytes: string | null;
+                    uploadedAt: Date | null;
+                    uploadedByUserId: string | null;
+                }>;
             }>;
         }>;
     }>;
@@ -178,6 +288,17 @@ export declare class CustomersController {
                 originalFilename: string | null;
                 mimeType: string | null;
                 uploadedAt: Date | null;
+                assignedTo: import("./document-assignment.service").DocumentAssignee[];
+                files: {
+                    id: string;
+                    storageKey: string | null;
+                    bucket: string | null;
+                    originalFilename: string | null;
+                    mimeType: string | null;
+                    sizeBytes: string | null;
+                    uploadedAt: Date | null;
+                    uploadedByUserId: string | null;
+                }[];
             }[] | undefined;
         }[];
     }>;
@@ -216,6 +337,17 @@ export declare class CustomersController {
                 originalFilename: string | null;
                 mimeType: string | null;
                 uploadedAt: Date | null;
+                assignedTo: import("./document-assignment.service").DocumentAssignee[];
+                files: {
+                    id: string;
+                    storageKey: string | null;
+                    bucket: string | null;
+                    originalFilename: string | null;
+                    mimeType: string | null;
+                    sizeBytes: string | null;
+                    uploadedAt: Date | null;
+                    uploadedByUserId: string | null;
+                }[];
             }[] | undefined;
         }[];
     }>;
@@ -255,6 +387,17 @@ export declare class CustomersController {
                 originalFilename: string | null;
                 mimeType: string | null;
                 uploadedAt: Date | null;
+                assignedTo: import("./document-assignment.service").DocumentAssignee[];
+                files: {
+                    id: string;
+                    storageKey: string | null;
+                    bucket: string | null;
+                    originalFilename: string | null;
+                    mimeType: string | null;
+                    sizeBytes: string | null;
+                    uploadedAt: Date | null;
+                    uploadedByUserId: string | null;
+                }[];
             }[] | undefined;
         }[];
     }>;
@@ -293,6 +436,17 @@ export declare class CustomersController {
                 originalFilename: string | null;
                 mimeType: string | null;
                 uploadedAt: Date | null;
+                assignedTo: import("./document-assignment.service").DocumentAssignee[];
+                files: {
+                    id: string;
+                    storageKey: string | null;
+                    bucket: string | null;
+                    originalFilename: string | null;
+                    mimeType: string | null;
+                    sizeBytes: string | null;
+                    uploadedAt: Date | null;
+                    uploadedByUserId: string | null;
+                }[];
             }[] | undefined;
         }[];
     }>;

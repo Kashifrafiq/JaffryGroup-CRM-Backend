@@ -20,6 +20,8 @@ class CreateCustomerDto {
     applicationType;
     applicationTypeId;
     applicationTypeCode;
+    applicationTypeIds;
+    applicationTypeCodes;
     role;
     address;
     profilePhoto;
@@ -47,7 +49,10 @@ __decorate([
     __metadata("design:type", String)
 ], CreateCustomerDto.prototype, "property", void 0);
 __decorate([
-    (0, class_validator_1.ValidateIf)((o) => !o.applicationTypeId && !o.applicationTypeCode),
+    (0, class_validator_1.ValidateIf)((o) => !o.applicationTypeId &&
+        !o.applicationTypeCode &&
+        !(o.applicationTypeIds?.length) &&
+        !(o.applicationTypeCodes?.length)),
     (0, class_validator_1.IsNotEmpty)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(128),
@@ -64,6 +69,19 @@ __decorate([
     (0, class_validator_1.MaxLength)(64),
     __metadata("design:type", String)
 ], CreateCustomerDto.prototype, "applicationTypeCode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsUUID)('4', { each: true }),
+    __metadata("design:type", Array)
+], CreateCustomerDto.prototype, "applicationTypeIds", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsString)({ each: true }),
+    (0, class_validator_1.MaxLength)(64, { each: true }),
+    __metadata("design:type", Array)
+], CreateCustomerDto.prototype, "applicationTypeCodes", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEnum)(user_role_enum_1.UserRole),

@@ -20,6 +20,8 @@ import { JwtActor } from './jwt-actor.type';
 import { CreateCustomerApiDto } from './dto/create-customer-api.dto';
 import { InviteCustomerDto } from './dto/invite-customer.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
+import { ListCustomerDocumentsQueryDto } from './dto/list-customer-documents-query.dto';
+import { ListCustomerPipelineStepsQueryDto } from './dto/list-customer-pipeline-steps-query.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerApplicationDto } from './dto/create-customer-application.dto';
 import { UpdateCustomerApplicationDto } from './dto/update-customer-application.dto';
@@ -71,6 +73,26 @@ export class CustomersController {
   @Roles(UserRole.CUSTOMER)
   myDocuments(@Request() req: RequestWithJwtUser) {
     return this.customersService.findMyDocuments(req.user.id);
+  }
+
+  @Get(':customerId/pipeline-steps')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  findPipelineSteps(
+    @Param('customerId') customerId: string,
+    @Query() query: ListCustomerPipelineStepsQueryDto,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.customersService.findCustomerPipelineSteps(customerId, this.actor(req), query);
+  }
+
+  @Get(':customerId/documents')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  findDocuments(
+    @Param('customerId') customerId: string,
+    @Query() query: ListCustomerDocumentsQueryDto,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.customersService.findCustomerDocuments(customerId, this.actor(req), query);
   }
 
   @Get(':customerId')

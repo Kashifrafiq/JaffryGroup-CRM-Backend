@@ -4,12 +4,15 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
 import { ApplicationDocumentRequirement } from './application-document-requirement.entity';
 import { CustomerApplicationDocumentStatus } from './customer-application-document-status.enum';
+import { User } from '../../users/entities/user.entity';
+import { CustomerApplicationDocumentFile } from './customer-application-document-file.entity';
 
 @Entity('customer_application_documents')
 @Unique(['customerApplicationId', 'documentRequirementId'])
@@ -60,8 +63,15 @@ export class CustomerApplicationDocument {
   @Column({ type: 'uuid', nullable: true })
   uploadedByUserId?: string | null;
 
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'uploadedByUserId' })
+  uploadedByUser?: User | null;
+
   @Column({ type: 'text', nullable: true })
   notes?: string | null;
+
+  @OneToMany(() => CustomerApplicationDocumentFile, (file) => file.customerApplicationDocument)
+  files?: CustomerApplicationDocumentFile[];
 
   @CreateDateColumn()
   createdAt!: Date;

@@ -11,6 +11,7 @@ import { CreateCustomerActivityDto } from './dto/create-customer-activity.dto';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { CustomerProfile } from '../users/entities/customer-profile.entity';
 import { PipelineStepAssignmentService } from '../customers/pipeline-step-assignment.service';
+import { DocumentAssignmentService } from '../customers/document-assignment.service';
 
 type JwtActor = {
   id: string;
@@ -27,6 +28,7 @@ export class ActivitiesService {
     @InjectRepository(AssociateProfile)
     private readonly associateRepository: Repository<AssociateProfile>,
     private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
+    private readonly documentAssignmentService: DocumentAssignmentService,
   ) {}
 
   async create(
@@ -113,11 +115,11 @@ export class ActivitiesService {
     associateId: string,
     customerId: string,
   ): Promise<void> {
-    const allowed = await this.pipelineStepAssignmentService.hasAccessToCustomer(
-      associateId,
-      customerId,
-    );
-    if (!allowed) {
+    const [pipelineAllowed, documentAllowed] = await Promise.all([
+      this.pipelineStepAssignmentService.hasAccessToCustomer(associateId, customerId),
+      this.documentAssignmentService.hasAccessToCustomer(associateId, customerId),
+    ]);
+    if (!pipelineAllowed && !documentAllowed) {
       throw new ForbiddenException('You do not have access to this customer');
     }
   }

@@ -1,4 +1,5 @@
 import { CustomerApplicationStatus } from '../entities/customer-application-status.enum';
+import { DocumentAssignmentOnCreateDto } from './document-assignment-on-create.dto';
 export declare class CreateCustomerApiDto {
     name: string;
     email: string;
@@ -6,9 +7,11 @@ export declare class CreateCustomerApiDto {
     property: string;
     applicationTypeId?: string;
     applicationTypeCode?: string;
+    applicationTypeIds?: string[];
+    applicationTypeCodes?: string[];
     status?: CustomerApplicationStatus;
-    pipeline?: Record<string, unknown>;
     address?: string;
     profilePhoto?: string;
     associateId?: string;
+    documentAssignments?: DocumentAssignmentOnCreateDto[];
 }

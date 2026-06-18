@@ -63,14 +63,16 @@ export declare class CustomerApplicationWorkflowController {
         bucket: string;
         key: string;
         expiresIn: number;
+        fileId: string;
     }>;
     presignUpload(customerId: string, applicationId: string, documentId: string, dto: PresignDocumentUploadDto, req: RequestWithJwtUser): Promise<{
         uploadUrl: string;
         bucket: string;
         key: string;
         expiresIn: number;
+        fileId: string;
     }>;
-    getDocumentReadUrlForMe(applicationId: string, documentId: string, req: RequestWithJwtUser): Promise<{
+    getDocumentReadUrlForMe(applicationId: string, documentId: string, fileId: string | undefined, req: RequestWithJwtUser): Promise<{
         readUrl: string;
         bucket: string;
         key: string;
@@ -121,7 +123,7 @@ export declare class CustomerApplicationWorkflowController {
         }[];
         documents: Record<string, unknown>[];
     }>;
-    getDocumentReadUrl(customerId: string, applicationId: string, documentId: string, req: RequestWithJwtUser): Promise<{
+    getDocumentReadUrl(customerId: string, applicationId: string, documentId: string, fileId: string | undefined, req: RequestWithJwtUser): Promise<{
         readUrl: string;
         bucket: string;
         key: string;

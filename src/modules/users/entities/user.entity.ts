@@ -22,30 +22,6 @@ export class User {
   @Column({ select: false })
   password!: string;
 
-  // Deprecated: kept temporarily for safe migration/backfill.
-  @Column({ nullable: true })
-  firstName?: string;
-
-  // Deprecated: kept temporarily for safe migration/backfill.
-  @Column({ nullable: true })
-  lastName?: string;
-
-  // Deprecated: kept temporarily for safe migration/backfill.
-  @Column({ nullable: true })
-  phoneNumber?: string;
-
-  // Deprecated: kept temporarily for safe migration/backfill.
-  @Column({ nullable: true })
-  address?: string;
-
-  // Deprecated: kept temporarily for safe migration/backfill.
-  @Column({ nullable: true })
-  dateOfBirth?: Date;
-
-  // Deprecated: kept temporarily for safe migration/backfill.
-  @Column({ nullable: true })
-  profilePhoto?: string;
-
   @Column({
     type: 'enum',
     enum: UserRole,
