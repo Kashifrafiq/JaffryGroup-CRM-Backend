@@ -17,6 +17,8 @@ import { CustomersService } from './customers.service';
 import { CustomerApplicationWorkflowService } from './customer-application-workflow.service';
 import { PipelineStepAssignmentService } from './pipeline-step-assignment.service';
 import { DocumentAssignmentService } from './document-assignment.service';
+import { CustomerDocumentCustomizationService } from './customer-document-customization.service';
+import { CustomerPipelineCustomizationService } from './customer-pipeline-customization.service';
 import { CustomerInviteMailService } from './customer-invite-mail.service';
 
 @Module({
@@ -41,8 +43,10 @@ import { CustomerInviteMailService } from './customer-invite-mail.service';
     CustomerApplicationWorkflowService,
     PipelineStepAssignmentService,
     DocumentAssignmentService,
+    CustomerDocumentCustomizationService,
+    CustomerPipelineCustomizationService,
     CustomerInviteMailService,
   ],
-  exports: [CustomersService, PipelineStepAssignmentService, DocumentAssignmentService],
+  exports: [CustomersService, PipelineStepAssignmentService, DocumentAssignmentService, CustomerDocumentCustomizationService, CustomerPipelineCustomizationService],
 })
 export class CustomersModule {}

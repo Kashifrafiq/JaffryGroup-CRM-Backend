@@ -25,8 +25,11 @@ export class ApplicationWorkflowService {
         CustomerApplicationPipelineProgress,
         manager.create(CustomerApplicationPipelineProgress, {
           customerApplicationId,
+          pipelineStepTemplateId: t.id,
           stepIndex: t.stepIndex,
           title: t.title,
+          isCustom: false,
+          isActive: true,
           completedAt: null,
         }),
       );
@@ -42,6 +45,12 @@ export class ApplicationWorkflowService {
         manager.create(CustomerApplicationDocument, {
           customerApplicationId,
           documentRequirementId: d.id,
+          requirementKey: d.requirementKey,
+          sectionTitle: d.sectionTitle,
+          itemLabel: d.itemLabel,
+          sortOrder: d.sortOrder,
+          isCustom: false,
+          isActive: true,
           status: CustomerApplicationDocumentStatus.PENDING,
         }),
       );

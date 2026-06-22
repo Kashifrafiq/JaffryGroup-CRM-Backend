@@ -12,6 +12,10 @@ import {
 import { Type } from 'class-transformer';
 import { CustomerApplicationStatus } from '../entities/customer-application-status.enum';
 import { DocumentAssignmentOnCreateDto } from './document-assignment-on-create.dto';
+import { CustomerDocumentOverrideDto } from './customer-document-override.dto';
+import { CustomerCustomDocumentDto } from './customer-custom-document.dto';
+import { CustomerPipelineStepOverrideDto } from './customer-pipeline-step-override.dto';
+import { CustomerCustomPipelineStepDto } from './customer-custom-pipeline-step.dto';
 
 export class CreateCustomerApiDto {
   @IsNotEmpty()
@@ -73,4 +77,32 @@ export class CreateCustomerApiDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentAssignmentOnCreateDto)
   documentAssignments?: DocumentAssignmentOnCreateDto[];
+
+  /** Rename, reorder, or soft-remove template documents for this customer only. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerDocumentOverrideDto)
+  documentOverrides?: CustomerDocumentOverrideDto[];
+
+  /** Add customer-specific custom document requirements. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerCustomDocumentDto)
+  customDocuments?: CustomerCustomDocumentDto[];
+
+  /** Rename or soft-remove template pipeline steps for this customer only. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerPipelineStepOverrideDto)
+  pipelineOverrides?: CustomerPipelineStepOverrideDto[];
+
+  /** Add customer-specific custom pipeline steps. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomerCustomPipelineStepDto)
+  customPipelineSteps?: CustomerCustomPipelineStepDto[];
 }

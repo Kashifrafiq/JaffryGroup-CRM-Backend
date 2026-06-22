@@ -13,6 +13,10 @@ exports.UpdateCustomerDto = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const document_assignment_dto_1 = require("./document-assignment.dto");
+const customer_document_override_dto_1 = require("./customer-document-override.dto");
+const customer_custom_document_dto_1 = require("./customer-custom-document.dto");
+const customer_pipeline_step_override_dto_1 = require("./customer-pipeline-step-override.dto");
+const customer_custom_pipeline_step_dto_1 = require("./customer-custom-pipeline-step.dto");
 class UpdateCustomerDto {
     name;
     email;
@@ -21,6 +25,10 @@ class UpdateCustomerDto {
     address;
     profilePhoto;
     documentAssignments;
+    documentOverrides;
+    customDocuments;
+    pipelineOverrides;
+    customPipelineSteps;
 }
 exports.UpdateCustomerDto = UpdateCustomerDto;
 __decorate([
@@ -63,4 +71,32 @@ __decorate([
     (0, class_transformer_1.Type)(() => document_assignment_dto_1.DocumentAssignmentDto),
     __metadata("design:type", Array)
 ], UpdateCustomerDto.prototype, "documentAssignments", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => customer_document_override_dto_1.CustomerDocumentOverrideDto),
+    __metadata("design:type", Array)
+], UpdateCustomerDto.prototype, "documentOverrides", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => customer_custom_document_dto_1.CustomerCustomDocumentDto),
+    __metadata("design:type", Array)
+], UpdateCustomerDto.prototype, "customDocuments", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => customer_pipeline_step_override_dto_1.CustomerPipelineStepOverrideDto),
+    __metadata("design:type", Array)
+], UpdateCustomerDto.prototype, "pipelineOverrides", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => customer_custom_pipeline_step_dto_1.CustomerCustomPipelineStepDto),
+    __metadata("design:type", Array)
+], UpdateCustomerDto.prototype, "customPipelineSteps", void 0);
 //# sourceMappingURL=update-customer.dto.js.map

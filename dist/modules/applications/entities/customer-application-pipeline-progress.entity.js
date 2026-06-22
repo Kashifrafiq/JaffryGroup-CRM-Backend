@@ -11,12 +11,17 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomerApplicationPipelineProgress = void 0;
 const typeorm_1 = require("typeorm");
+const application_pipeline_step_template_entity_1 = require("./application-pipeline-step-template.entity");
 let CustomerApplicationPipelineProgress = class CustomerApplicationPipelineProgress {
     id;
     customerApplicationId;
     customerApplication;
+    pipelineStepTemplateId;
+    pipelineStepTemplate;
     stepIndex;
     title;
+    isCustom;
+    isActive;
     completedAt;
     createdAt;
     updatedAt;
@@ -36,6 +41,15 @@ __decorate([
     __metadata("design:type", Object)
 ], CustomerApplicationPipelineProgress.prototype, "customerApplication", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], CustomerApplicationPipelineProgress.prototype, "pipelineStepTemplateId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => application_pipeline_step_template_entity_1.ApplicationPipelineStepTemplate, { onDelete: 'SET NULL', nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'pipelineStepTemplateId' }),
+    __metadata("design:type", Object)
+], CustomerApplicationPipelineProgress.prototype, "pipelineStepTemplate", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'int' }),
     __metadata("design:type", Number)
 ], CustomerApplicationPipelineProgress.prototype, "stepIndex", void 0);
@@ -43,6 +57,14 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 512 }),
     __metadata("design:type", String)
 ], CustomerApplicationPipelineProgress.prototype, "title", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], CustomerApplicationPipelineProgress.prototype, "isCustom", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], CustomerApplicationPipelineProgress.prototype, "isActive", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'timestamptz', nullable: true }),
     __metadata("design:type", Object)

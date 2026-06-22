@@ -382,6 +382,191 @@ Response: full customer detail (`GET /customers/:customerId` shape) with updated
 
 ---
 
+## Per-customer document customization
+
+Global templates (`application_document_requirements`) are unchanged. Each customer gets **their own copy** of display fields on `customer_application_documents`.
+
+### Load defaults when building create UI
+
+```http
+GET /application-types/:applicationTypeId/workflow-template
+```
+
+Returns default `documents[]` with `requirementKey`, `sectionTitle`, `itemLabel`, `sortOrder`.
+
+### Create customer with customized documents
+
+```http
+POST /customers
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone": "5145550100",
+  "property": "123 Main St",
+  "applicationTypeCodes": ["business_credit"],
+  "documentOverrides": [
+    {
+      "applicationTypeCode": "business_credit",
+      "requirementKey": "financial_statements",
+      "itemLabel": "Last 3 years financials (renamed for this client)"
+    },
+    {
+      "applicationTypeCode": "business_credit",
+      "requirementKey": "tax_returns",
+      "removed": true
+    }
+  ],
+  "customDocuments": [
+    {
+      "applicationTypeCode": "business_credit",
+      "sectionTitle": "Additional",
+      "itemLabel": "Partnership agreement",
+      "sortOrder": 99
+    }
+  ],
+  "documentAssignments": [ ... ]
+}
+```
+
+| Field | Purpose |
+|-------|---------|
+| `documentOverrides[].requirementKey` | Match template doc on **create** |
+| `documentOverrides[].documentId` | Match existing doc on **edit** |
+| `itemLabel` / `sectionTitle` | Rename for this customer only |
+| `removed: true` | Soft-hide doc (`isActive: false`); files kept |
+| `customDocuments[]` | Add customer-only requirements (`isCustom: true`) |
+
+### Edit customer documents
+
+```http
+PATCH /customers/:customerId
+{
+  "documentOverrides": [
+    {
+      "documentId": "customer-document-uuid",
+      "itemLabel": "Updated label",
+      "removed": false
+    }
+  ],
+  "customDocuments": [
+    {
+      "applicationTypeCode": "business_credit",
+      "sectionTitle": "Extra",
+      "itemLabel": "Insurance certificate"
+    }
+  ]
+}
+```
+
+### Incremental edit (single document)
+
+```http
+PATCH /customers/:customerId/applications/:applicationId/documents/:documentId/customization
+{ "itemLabel": "New name", "sectionTitle": "Section", "sortOrder": 5, "removed": false }
+
+POST /customers/:customerId/applications/:applicationId/custom-documents
+{ "sectionTitle": "Custom", "itemLabel": "One-off document", "sortOrder": 10 }
+```
+
+**Notes:**
+
+- Renaming affects **display + new S3 paths** only; existing uploaded files keep their keys.
+- Removed documents are hidden from customer portal and CRM lists; upload returns **400**.
+- Changing `applicationType` on an application **rebuilds** documents from templates (customizations lost).
+
+---
+
+## Per-customer pipeline step customization
+
+Global templates (`application_pipeline_step_templates`) are unchanged. Each customer gets **their own copy** of display fields on `customer_application_pipeline_progress` (`title`, `stepIndex`, `isCustom`, `isActive`).
+
+### Load defaults when building create UI
+
+```http
+GET /application-types/:applicationTypeId/workflow-template
+```
+
+Returns default `pipelineSteps[]` with `stepIndex`, `title`.
+
+### Create customer with customized pipeline
+
+```http
+POST /customers
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "phone": "5145550100",
+  "property": "123 Main St",
+  "applicationTypeCodes": ["business_credit"],
+  "pipelineOverrides": [
+    {
+      "applicationTypeCode": "business_credit",
+      "stepIndex": 0,
+      "title": "Initial consultation (renamed for this client)"
+    },
+    {
+      "applicationTypeCode": "business_credit",
+      "stepIndex": 3,
+      "removed": true
+    }
+  ],
+  "customPipelineSteps": [
+    {
+      "applicationTypeCode": "business_credit",
+      "title": "Extra compliance review",
+      "stepIndex": 10
+    }
+  ]
+}
+```
+
+| Field | Purpose |
+|-------|---------|
+| `pipelineOverrides[].stepIndex` | Match template step on **create** |
+| `pipelineOverrides[].pipelineProgressId` | Match existing step on **edit** (`pipelineSteps[].id`) |
+| `title` | Rename for this customer only |
+| `removed: true` | Soft-hide step (`isActive: false`); completion history kept |
+| `customPipelineSteps[]` | Add customer-only steps (`isCustom: true`) |
+
+### Edit customer pipeline steps
+
+```http
+PATCH /customers/:customerId
+{
+  "pipelineOverrides": [
+    {
+      "pipelineProgressId": "pipeline-progress-uuid",
+      "title": "Updated step name",
+      "removed": false
+    }
+  ],
+  "customPipelineSteps": [
+    {
+      "applicationTypeCode": "business_credit",
+      "title": "Follow-up call"
+    }
+  ]
+}
+```
+
+### Incremental edit (single step)
+
+```http
+PATCH /customers/:customerId/applications/:applicationId/pipeline-steps/:pipelineProgressId/customization
+{ "title": "New name", "removed": false }
+
+POST /customers/:customerId/applications/:applicationId/custom-pipeline-steps
+{ "title": "One-off review step", "stepIndex": 11 }
+```
+
+**Notes:**
+
+- Removed steps are hidden from customer portal, CRM lists, and workflow; marking complete returns **400**.
+- Custom steps added on create are auto-assigned to the initial associate (if `associateId` is set), because pipeline customization runs before bulk assignment.
+- Changing `applicationType` on an application **rebuilds** pipeline from templates (customizations lost).
+
+---
+
 ## ID reference (do not mix up)
 
 | Parameter | Source |
@@ -389,6 +574,7 @@ Response: full customer detail (`GET /customers/:customerId` shape) with updated
 | `customerId` | `CustomerSummary.id` |
 | `applicationId` | `applications[].applicationId` |
 | `stepIndex` | `pipelineSteps[].stepIndex` (integer, 0-based) |
+| `pipelineProgressId` | `pipelineSteps[].id` (UUID) |
 | `associateId` | `AssociateProfile.id` from `GET /associates` |
 | Auth `user.id` | Login only — **not** for assignment APIs |
 

@@ -14,6 +14,10 @@ const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const customer_application_status_enum_1 = require("../entities/customer-application-status.enum");
 const document_assignment_on_create_dto_1 = require("./document-assignment-on-create.dto");
+const customer_document_override_dto_1 = require("./customer-document-override.dto");
+const customer_custom_document_dto_1 = require("./customer-custom-document.dto");
+const customer_pipeline_step_override_dto_1 = require("./customer-pipeline-step-override.dto");
+const customer_custom_pipeline_step_dto_1 = require("./customer-custom-pipeline-step.dto");
 class CreateCustomerApiDto {
     name;
     email;
@@ -28,6 +32,10 @@ class CreateCustomerApiDto {
     profilePhoto;
     associateId;
     documentAssignments;
+    documentOverrides;
+    customDocuments;
+    pipelineOverrides;
+    customPipelineSteps;
 }
 exports.CreateCustomerApiDto = CreateCustomerApiDto;
 __decorate([
@@ -102,4 +110,32 @@ __decorate([
     (0, class_transformer_1.Type)(() => document_assignment_on_create_dto_1.DocumentAssignmentOnCreateDto),
     __metadata("design:type", Array)
 ], CreateCustomerApiDto.prototype, "documentAssignments", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => customer_document_override_dto_1.CustomerDocumentOverrideDto),
+    __metadata("design:type", Array)
+], CreateCustomerApiDto.prototype, "documentOverrides", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => customer_custom_document_dto_1.CustomerCustomDocumentDto),
+    __metadata("design:type", Array)
+], CreateCustomerApiDto.prototype, "customDocuments", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => customer_pipeline_step_override_dto_1.CustomerPipelineStepOverrideDto),
+    __metadata("design:type", Array)
+], CreateCustomerApiDto.prototype, "pipelineOverrides", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => customer_custom_pipeline_step_dto_1.CustomerCustomPipelineStepDto),
+    __metadata("design:type", Array)
+], CreateCustomerApiDto.prototype, "customPipelineSteps", void 0);
 //# sourceMappingURL=create-customer-api.dto.js.map

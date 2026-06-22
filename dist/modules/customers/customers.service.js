@@ -25,6 +25,10 @@ const user_entity_1 = require("../users/entities/user.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const pipeline_step_assignment_service_1 = require("./pipeline-step-assignment.service");
 const document_assignment_service_1 = require("./document-assignment.service");
+const customer_document_customization_service_1 = require("./customer-document-customization.service");
+const customer_pipeline_customization_service_1 = require("./customer-pipeline-customization.service");
+const customer_document_display_1 = require("./customer-document-display");
+const customer_pipeline_display_1 = require("./customer-pipeline-display");
 const customer_application_entity_1 = require("./entities/customer-application.entity");
 const customer_application_status_enum_1 = require("./entities/customer-application-status.enum");
 const application_types_service_1 = require("../applications/application-types.service");
@@ -41,6 +45,8 @@ let CustomersService = CustomersService_1 = class CustomersService {
     associateProfileRepository;
     pipelineStepAssignmentService;
     documentAssignmentService;
+    customerDocumentCustomizationService;
+    customerPipelineCustomizationService;
     customerInviteRepository;
     userRepository;
     applicationTypesService;
@@ -50,12 +56,14 @@ let CustomersService = CustomersService_1 = class CustomersService {
     configService;
     dataSource;
     logger = new common_1.Logger(CustomersService_1.name);
-    constructor(customerRepository, applicationRepository, associateProfileRepository, pipelineStepAssignmentService, documentAssignmentService, customerInviteRepository, userRepository, applicationTypesService, applicationWorkflowService, customerApplicationWorkflowService, customerInviteMailService, configService, dataSource) {
+    constructor(customerRepository, applicationRepository, associateProfileRepository, pipelineStepAssignmentService, documentAssignmentService, customerDocumentCustomizationService, customerPipelineCustomizationService, customerInviteRepository, userRepository, applicationTypesService, applicationWorkflowService, customerApplicationWorkflowService, customerInviteMailService, configService, dataSource) {
         this.customerRepository = customerRepository;
         this.applicationRepository = applicationRepository;
         this.associateProfileRepository = associateProfileRepository;
         this.pipelineStepAssignmentService = pipelineStepAssignmentService;
         this.documentAssignmentService = documentAssignmentService;
+        this.customerDocumentCustomizationService = customerDocumentCustomizationService;
+        this.customerPipelineCustomizationService = customerPipelineCustomizationService;
         this.customerInviteRepository = customerInviteRepository;
         this.userRepository = userRepository;
         this.applicationTypesService = applicationTypesService;
@@ -96,8 +104,14 @@ let CustomersService = CustomersService_1 = class CustomersService {
             });
             return saved;
         });
+        if (dto.pipelineOverrides?.length || dto.customPipelineSteps?.length) {
+            await this.customerPipelineCustomizationService.applyOnCreate(customer.id, dto.pipelineOverrides ?? [], dto.customPipelineSteps ?? []);
+        }
         if (associateId) {
             await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(customer.id, associateId);
+        }
+        if (dto.documentOverrides?.length || dto.customDocuments?.length) {
+            await this.customerDocumentCustomizationService.applyOnCreate(customer.id, dto.documentOverrides ?? [], dto.customDocuments ?? []);
         }
         if (dto.documentAssignments?.length) {
             await this.documentAssignmentService.applyAssignmentsOnCreate(customer.id, dto.documentAssignments);
@@ -247,6 +261,7 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 : null,
             pipelineSteps: (app.pipelineProgress ?? [])
                 .slice()
+                .filter(customer_pipeline_display_1.isCustomerPipelineStepVisible)
                 .sort((a, b) => a.stepIndex - b.stepIndex)
                 .map((step) => ({
                 stepIndex: step.stepIndex,
@@ -267,7 +282,6 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 'applications',
                 'applications.applicationType',
                 'applications.applicationDocuments',
-                'applications.applicationDocuments.requirement',
                 'applications.applicationDocuments.files',
             ],
         });
@@ -281,7 +295,8 @@ let CustomersService = CustomersService_1 = class CustomersService {
             .map((app) => {
             const documents = (app.applicationDocuments ?? [])
                 .slice()
-                .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+                .filter(customer_document_display_1.isCustomerDocumentVisible)
+                .sort((d1, d2) => d1.sortOrder - d2.sortOrder)
                 .map((doc) => {
                 const customerFiles = (0, customer_document_visibility_1.mapVisibleCustomerFiles)(doc.files ?? [], userId, uploaderRoleByUserId);
                 const legacyUploadedByMe = (0, customer_document_visibility_1.isUploadedByCustomerUser)(doc, userId, uploaderRoleByUserId);
@@ -291,9 +306,10 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 const uploadedByMe = customerFiles.length > 0 || legacyUploadedByMe;
                 return {
                     id: doc.id,
-                    requirementKey: doc.requirement.requirementKey,
-                    sectionTitle: doc.requirement.sectionTitle,
-                    itemLabel: doc.requirement.itemLabel,
+                    requirementKey: doc.requirementKey,
+                    sectionTitle: doc.sectionTitle,
+                    itemLabel: doc.itemLabel,
+                    isCustom: doc.isCustom,
                     status: doc.status,
                     uploaded,
                     uploadedByMe,
@@ -358,7 +374,6 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 'applications',
                 'applications.applicationType',
                 'applications.applicationDocuments',
-                'applications.applicationDocuments.requirement',
                 'applications.applicationDocuments.files',
             ],
         });
@@ -382,17 +397,19 @@ let CustomersService = CustomersService_1 = class CustomersService {
         const applications = apps.map((app) => {
             const documents = (app.applicationDocuments ?? [])
                 .slice()
-                .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+                .filter(customer_document_display_1.isCustomerDocumentVisible)
+                .sort((d1, d2) => d1.sortOrder - d2.sortOrder)
                 .filter((doc) => assignedDocumentIdSet.has(doc.id))
                 .map((doc) => {
                 const attachmentFiles = (doc.files ?? []).filter((f) => !!f.uploadedAt && !!f.storageKey);
                 const uploaded = attachmentFiles.length > 0 || (0, customer_document_visibility_1.isDocumentFileUploaded)(doc);
                 return {
                     id: doc.id,
-                    requirementKey: doc.requirement.requirementKey,
-                    sectionTitle: doc.requirement.sectionTitle,
-                    itemLabel: doc.requirement.itemLabel,
-                    sortOrder: doc.requirement.sortOrder,
+                    requirementKey: doc.requirementKey,
+                    sectionTitle: doc.sectionTitle,
+                    itemLabel: doc.itemLabel,
+                    sortOrder: doc.sortOrder,
+                    isCustom: doc.isCustom,
                     status: doc.status,
                     uploaded,
                     fileCount: attachmentFiles.length + (doc.uploadedAt && doc.storageKey ? 1 : 0),
@@ -490,11 +507,14 @@ let CustomersService = CustomersService_1 = class CustomersService {
         const applications = apps.map((app) => {
             const pipelineSteps = (app.pipelineProgress ?? [])
                 .slice()
+                .filter(customer_pipeline_display_1.isCustomerPipelineStepVisible)
                 .sort((a, b) => a.stepIndex - b.stepIndex)
                 .filter((step) => assignedProgressIdSet.has(step.id))
                 .map((step) => ({
+                id: step.id,
                 stepIndex: step.stepIndex,
                 title: step.title,
+                isCustom: step.isCustom,
                 completedAt: step.completedAt ?? null,
                 assignedTo: assigneesByProgressId.get(step.id) ?? [],
             }));
@@ -532,7 +552,6 @@ let CustomersService = CustomersService_1 = class CustomersService {
                 'applications.applicationType',
                 'applications.pipelineProgress',
                 'applications.applicationDocuments',
-                'applications.applicationDocuments.requirement',
                 'applications.applicationDocuments.files',
             ],
         });
@@ -576,10 +595,36 @@ let CustomersService = CustomersService_1 = class CustomersService {
             customer.profilePhoto = dto.profilePhoto;
         }
         await this.customerRepository.save(customer);
+        if (dto.pipelineOverrides?.length || dto.customPipelineSteps?.length) {
+            await this.customerPipelineCustomizationService.applyOnUpdate(customerId, dto.pipelineOverrides ?? [], dto.customPipelineSteps ?? []);
+        }
+        if (dto.documentOverrides?.length || dto.customDocuments?.length) {
+            await this.customerDocumentCustomizationService.applyOnUpdate(customerId, dto.documentOverrides ?? [], dto.customDocuments ?? []);
+        }
         if (dto.documentAssignments?.length) {
             await this.documentAssignmentService.applyAssignmentsOnUpdate(customerId, dto.documentAssignments);
         }
         return this.findOneDetail(customerId, actor);
+    }
+    async customizeCustomerPipelineStep(customerId, applicationId, pipelineProgressId, dto, actor) {
+        this.assertAdminOrAssociate(actor);
+        await this.assertCanAccessCustomer(actor, customerId);
+        return this.customerPipelineCustomizationService.applySingleOverride(customerId, applicationId, pipelineProgressId, dto);
+    }
+    async addCustomCustomerPipelineStep(customerId, applicationId, dto, actor) {
+        this.assertAdminOrAssociate(actor);
+        await this.assertCanAccessCustomer(actor, customerId);
+        return this.customerPipelineCustomizationService.addCustomPipelineStep(customerId, applicationId, dto);
+    }
+    async customizeCustomerDocument(customerId, applicationId, documentId, dto, actor) {
+        this.assertAdminOrAssociate(actor);
+        await this.assertCanAccessCustomer(actor, customerId);
+        return this.customerDocumentCustomizationService.applySingleOverride(customerId, applicationId, documentId, dto);
+    }
+    async addCustomCustomerDocument(customerId, applicationId, dto, actor) {
+        this.assertAdminOrAssociate(actor);
+        await this.assertCanAccessCustomer(actor, customerId);
+        return this.customerDocumentCustomizationService.addCustomDocument(customerId, applicationId, dto);
     }
     async removeCustomer(customerId, actor) {
         if (!actor || actor.role !== user_role_enum_1.UserRole.ADMIN) {
@@ -1012,64 +1057,73 @@ let CustomersService = CustomersService_1 = class CustomersService {
         const applications = (customer.applications ?? [])
             .slice()
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-            .map((a) => ({
-            applicationId: a.id,
-            applicationType: a.applicationType
-                ? {
-                    id: a.applicationType.id,
-                    name: a.applicationType.name,
-                }
-                : null,
-            progress: {
-                completedSteps: (a.pipelineProgress ?? []).filter((p) => !!p.completedAt).length,
-                totalSteps: (a.pipelineProgress ?? []).length,
-            },
-            pipelineSteps: (a.pipelineProgress ?? [])
-                .slice()
-                .sort((p1, p2) => p1.stepIndex - p2.stepIndex)
-                .map((p) => ({
-                stepIndex: p.stepIndex,
-                title: p.title,
-                completedAt: p.completedAt ?? null,
-                assignedTo: [],
-            })),
-            assignedTo: [],
-            documents: includeDocuments
-                ? (a.applicationDocuments ?? [])
-                    .slice()
-                    .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
-                    .filter((d) => {
-                    if (assignedDocumentIds === null) {
-                        return true;
+            .map((a) => {
+            const visiblePipelineSteps = (a.pipelineProgress ?? []).filter(customer_pipeline_display_1.isCustomerPipelineStepVisible);
+            return {
+                applicationId: a.id,
+                applicationType: a.applicationType
+                    ? {
+                        id: a.applicationType.id,
+                        name: a.applicationType.name,
                     }
-                    return assignedDocumentIds.includes(d.id);
-                })
-                    .map((d) => ({
-                    id: d.id,
-                    requirementKey: d.requirement.requirementKey,
-                    itemLabel: d.requirement.itemLabel,
-                    status: d.status,
-                    storageKey: d.storageKey ?? null,
-                    bucket: d.bucket ?? null,
-                    originalFilename: d.originalFilename ?? null,
-                    mimeType: d.mimeType ?? null,
-                    uploadedAt: d.uploadedAt ?? null,
-                    assignedTo: documentAssigneesById.get(d.id) ?? [],
-                    files: (d.files ?? [])
-                        .filter((f) => !!f.uploadedAt && !!f.storageKey)
-                        .map((f) => ({
-                        id: f.id,
-                        storageKey: f.storageKey ?? null,
-                        bucket: f.bucket ?? null,
-                        originalFilename: f.originalFilename ?? null,
-                        mimeType: f.mimeType ?? null,
-                        sizeBytes: f.sizeBytes ?? null,
-                        uploadedAt: f.uploadedAt ?? null,
-                        uploadedByUserId: f.uploadedByUserId ?? null,
-                    })),
-                }))
-                : undefined,
-        }));
+                    : null,
+                progress: {
+                    completedSteps: visiblePipelineSteps.filter((p) => !!p.completedAt).length,
+                    totalSteps: visiblePipelineSteps.length,
+                },
+                pipelineSteps: visiblePipelineSteps
+                    .slice()
+                    .sort((p1, p2) => p1.stepIndex - p2.stepIndex)
+                    .map((p) => ({
+                    id: p.id,
+                    stepIndex: p.stepIndex,
+                    title: p.title,
+                    isCustom: p.isCustom,
+                    completedAt: p.completedAt ?? null,
+                    assignedTo: [],
+                })),
+                assignedTo: [],
+                documents: includeDocuments
+                    ? (a.applicationDocuments ?? [])
+                        .slice()
+                        .filter(customer_document_display_1.isCustomerDocumentVisible)
+                        .sort((d1, d2) => d1.sortOrder - d2.sortOrder)
+                        .filter((d) => {
+                        if (assignedDocumentIds === null) {
+                            return true;
+                        }
+                        return assignedDocumentIds.includes(d.id);
+                    })
+                        .map((d) => ({
+                        id: d.id,
+                        requirementKey: d.requirementKey,
+                        sectionTitle: d.sectionTitle,
+                        itemLabel: d.itemLabel,
+                        sortOrder: d.sortOrder,
+                        isCustom: d.isCustom,
+                        status: d.status,
+                        storageKey: d.storageKey ?? null,
+                        bucket: d.bucket ?? null,
+                        originalFilename: d.originalFilename ?? null,
+                        mimeType: d.mimeType ?? null,
+                        uploadedAt: d.uploadedAt ?? null,
+                        assignedTo: documentAssigneesById.get(d.id) ?? [],
+                        files: (d.files ?? [])
+                            .filter((f) => !!f.uploadedAt && !!f.storageKey)
+                            .map((f) => ({
+                            id: f.id,
+                            storageKey: f.storageKey ?? null,
+                            bucket: f.bucket ?? null,
+                            originalFilename: f.originalFilename ?? null,
+                            mimeType: f.mimeType ?? null,
+                            sizeBytes: f.sizeBytes ?? null,
+                            uploadedAt: f.uploadedAt ?? null,
+                            uploadedByUserId: f.uploadedByUserId ?? null,
+                        })),
+                    }))
+                    : undefined,
+            };
+        });
         return {
             id: customer.id,
             profilePhoto: customer.profilePhoto ?? null,
@@ -1088,13 +1142,15 @@ exports.CustomersService = CustomersService = CustomersService_1 = __decorate([
     __param(0, (0, typeorm_1.InjectRepository)(customer_profile_entity_1.CustomerProfile)),
     __param(1, (0, typeorm_1.InjectRepository)(customer_application_entity_1.CustomerApplication)),
     __param(2, (0, typeorm_1.InjectRepository)(associate_profile_entity_1.AssociateProfile)),
-    __param(5, (0, typeorm_1.InjectRepository)(customer_invite_entity_1.CustomerInvite)),
-    __param(6, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
+    __param(7, (0, typeorm_1.InjectRepository)(customer_invite_entity_1.CustomerInvite)),
+    __param(8, (0, typeorm_1.InjectRepository)(user_entity_1.User)),
     __metadata("design:paramtypes", [typeorm_2.Repository,
         typeorm_2.Repository,
         typeorm_2.Repository,
         pipeline_step_assignment_service_1.PipelineStepAssignmentService,
         document_assignment_service_1.DocumentAssignmentService,
+        customer_document_customization_service_1.CustomerDocumentCustomizationService,
+        customer_pipeline_customization_service_1.CustomerPipelineCustomizationService,
         typeorm_2.Repository,
         typeorm_2.Repository,
         application_types_service_1.ApplicationTypesService,

@@ -8,6 +8,10 @@ import { ListCustomerPipelineStepsQueryDto } from './dto/list-customer-pipeline-
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerApplicationDto } from './dto/create-customer-application.dto';
 import { UpdateCustomerApplicationDto } from './dto/update-customer-application.dto';
+import { PatchCustomerDocumentDisplayDto } from './dto/patch-customer-document-display.dto';
+import { CustomerCustomDocumentDto } from './dto/customer-custom-document.dto';
+import { PatchCustomerPipelineStepDisplayDto } from './dto/patch-customer-pipeline-step-display.dto';
+import { CustomerCustomPipelineStepDto } from './dto/customer-custom-pipeline-step.dto';
 type RequestWithJwtUser = {
     user: Pick<User, 'id' | 'email' | 'role'>;
 };
@@ -34,8 +38,10 @@ export declare class CustomersController {
                 totalSteps: number;
             };
             pipelineSteps: {
+                id: string;
                 stepIndex: number;
                 title: string;
+                isCustom: boolean;
                 completedAt: Date | null;
                 assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             }[];
@@ -43,7 +49,10 @@ export declare class CustomersController {
             documents: {
                 id: string;
                 requirementKey: string;
+                sectionTitle: string;
                 itemLabel: string;
+                sortOrder: number;
+                isCustom: boolean;
                 status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
                 storageKey: string | null;
                 bucket: string | null;
@@ -88,8 +97,10 @@ export declare class CustomersController {
                 totalSteps: number;
             };
             pipelineSteps: {
+                id: string;
                 stepIndex: number;
                 title: string;
+                isCustom: boolean;
                 completedAt: Date | null;
                 assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             }[];
@@ -97,7 +108,10 @@ export declare class CustomersController {
             documents: {
                 id: string;
                 requirementKey: string;
+                sectionTitle: string;
                 itemLabel: string;
+                sortOrder: number;
+                isCustom: boolean;
                 status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
                 storageKey: string | null;
                 bucket: string | null;
@@ -205,6 +219,10 @@ export declare class CustomersController {
             }>;
         }>;
     }>;
+    customizeDocument(customerId: string, applicationId: string, documentId: string, dto: PatchCustomerDocumentDisplayDto, req: RequestWithJwtUser): Promise<import("../applications/entities/customer-application-document.entity").CustomerApplicationDocument>;
+    addCustomDocument(customerId: string, applicationId: string, dto: CustomerCustomDocumentDto, req: RequestWithJwtUser): Promise<import("../applications/entities/customer-application-document.entity").CustomerApplicationDocument>;
+    customizePipelineStep(customerId: string, applicationId: string, pipelineProgressId: string, dto: PatchCustomerPipelineStepDisplayDto, req: RequestWithJwtUser): Promise<import("../applications/entities/customer-application-pipeline-progress.entity").CustomerApplicationPipelineProgress>;
+    addCustomPipelineStep(customerId: string, applicationId: string, dto: CustomerCustomPipelineStepDto, req: RequestWithJwtUser): Promise<import("../applications/entities/customer-application-pipeline-progress.entity").CustomerApplicationPipelineProgress>;
     findDocuments(customerId: string, query: ListCustomerDocumentsQueryDto, req: RequestWithJwtUser): Promise<{
         customerId: string;
         customerName: string;
@@ -272,8 +290,10 @@ export declare class CustomersController {
                 totalSteps: number;
             };
             pipelineSteps: {
+                id: string;
                 stepIndex: number;
                 title: string;
+                isCustom: boolean;
                 completedAt: Date | null;
                 assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             }[];
@@ -281,7 +301,10 @@ export declare class CustomersController {
             documents: {
                 id: string;
                 requirementKey: string;
+                sectionTitle: string;
                 itemLabel: string;
+                sortOrder: number;
+                isCustom: boolean;
                 status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
                 storageKey: string | null;
                 bucket: string | null;
@@ -321,8 +344,10 @@ export declare class CustomersController {
                 totalSteps: number;
             };
             pipelineSteps: {
+                id: string;
                 stepIndex: number;
                 title: string;
+                isCustom: boolean;
                 completedAt: Date | null;
                 assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             }[];
@@ -330,7 +355,10 @@ export declare class CustomersController {
             documents: {
                 id: string;
                 requirementKey: string;
+                sectionTitle: string;
                 itemLabel: string;
+                sortOrder: number;
+                isCustom: boolean;
                 status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
                 storageKey: string | null;
                 bucket: string | null;
@@ -371,8 +399,10 @@ export declare class CustomersController {
                 totalSteps: number;
             };
             pipelineSteps: {
+                id: string;
                 stepIndex: number;
                 title: string;
+                isCustom: boolean;
                 completedAt: Date | null;
                 assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             }[];
@@ -380,7 +410,10 @@ export declare class CustomersController {
             documents: {
                 id: string;
                 requirementKey: string;
+                sectionTitle: string;
                 itemLabel: string;
+                sortOrder: number;
+                isCustom: boolean;
                 status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
                 storageKey: string | null;
                 bucket: string | null;
@@ -420,8 +453,10 @@ export declare class CustomersController {
                 totalSteps: number;
             };
             pipelineSteps: {
+                id: string;
                 stepIndex: number;
                 title: string;
+                isCustom: boolean;
                 completedAt: Date | null;
                 assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
             }[];
@@ -429,7 +464,10 @@ export declare class CustomersController {
             documents: {
                 id: string;
                 requirementKey: string;
+                sectionTitle: string;
                 itemLabel: string;
+                sortOrder: number;
+                isCustom: boolean;
                 status: import("../applications/entities/customer-application-document-status.enum").CustomerApplicationDocumentStatus;
                 storageKey: string | null;
                 bucket: string | null;

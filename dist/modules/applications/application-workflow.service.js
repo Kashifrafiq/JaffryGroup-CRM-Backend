@@ -22,8 +22,11 @@ let ApplicationWorkflowService = class ApplicationWorkflowService {
         for (const t of pipelineTemplates) {
             await manager.save(customer_application_pipeline_progress_entity_1.CustomerApplicationPipelineProgress, manager.create(customer_application_pipeline_progress_entity_1.CustomerApplicationPipelineProgress, {
                 customerApplicationId,
+                pipelineStepTemplateId: t.id,
                 stepIndex: t.stepIndex,
                 title: t.title,
+                isCustom: false,
+                isActive: true,
                 completedAt: null,
             }));
         }
@@ -35,6 +38,12 @@ let ApplicationWorkflowService = class ApplicationWorkflowService {
             await manager.save(customer_application_document_entity_1.CustomerApplicationDocument, manager.create(customer_application_document_entity_1.CustomerApplicationDocument, {
                 customerApplicationId,
                 documentRequirementId: d.id,
+                requirementKey: d.requirementKey,
+                sectionTitle: d.sectionTitle,
+                itemLabel: d.itemLabel,
+                sortOrder: d.sortOrder,
+                isCustom: false,
+                isActive: true,
                 status: customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.PENDING,
             }));
         }

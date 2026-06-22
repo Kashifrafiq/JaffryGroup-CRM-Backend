@@ -35,8 +35,10 @@ export declare class CustomerApplicationWorkflowService {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -65,8 +67,10 @@ export declare class CustomerApplicationWorkflowService {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -94,8 +98,10 @@ export declare class CustomerApplicationWorkflowService {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -109,8 +115,10 @@ export declare class CustomerApplicationWorkflowService {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -124,8 +132,10 @@ export declare class CustomerApplicationWorkflowService {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -151,8 +161,10 @@ export declare class CustomerApplicationWorkflowService {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -170,8 +182,10 @@ export declare class CustomerApplicationWorkflowService {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -187,6 +201,8 @@ export declare class CustomerApplicationWorkflowService {
     private assertCanAccessDocument;
     private assertCanModifyPipelineStep;
     private uploaderRoleMapForDocuments;
+    private assertDocumentIsActive;
+    private assertPipelineStepIsActive;
     private assertCustomerCanUploadDocument;
     private assertCustomerCanPreviewDocument;
     private assertCustomerCanPreviewFile;

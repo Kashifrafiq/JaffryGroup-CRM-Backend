@@ -18,6 +18,8 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_entity_1 = require("../users/entities/user.entity");
 const customer_document_visibility_1 = require("./customer-document-visibility");
+const customer_document_display_1 = require("./customer-document-display");
+const customer_pipeline_display_1 = require("./customer-pipeline-display");
 const customer_application_entity_1 = require("./entities/customer-application.entity");
 const associate_profile_entity_1 = require("../users/entities/associate-profile.entity");
 const pipeline_step_assignment_service_1 = require("./pipeline-step-assignment.service");
@@ -62,7 +64,6 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const app = await this.loadApplication(cid, aid, [
             'pipelineProgress',
             'applicationDocuments',
-            'applicationDocuments.requirement',
             'applicationDocuments.files',
             'applicationType',
         ]);
@@ -98,12 +99,12 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         if (!row) {
             throw new common_1.NotFoundException(`Pipeline step ${stepIndex} not found for this application`);
         }
+        this.assertPipelineStepIsActive(row);
         row.completedAt = completed ? new Date() : null;
         await this.pipelineProgressRepository.save(row);
         return await this.buildWorkflowPayload(await this.loadApplication(cid, aid, [
             'pipelineProgress',
             'applicationDocuments',
-            'applicationDocuments.requirement',
             'applicationDocuments.files',
             'applicationType',
         ]));
@@ -114,7 +115,8 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const did = this.tid(documentId);
         await this.assertCanAccessApplication(actor, cid, aid);
         const app = await this.loadApplication(cid, aid, ['applicationType']);
-        const doc = await this.loadDocumentRow(cid, aid, did, ['requirement']);
+        const doc = await this.loadDocumentRow(cid, aid, did, []);
+        this.assertDocumentIsActive(doc);
         if (actor.role === user_role_enum_1.UserRole.CUSTOMER) {
             await this.assertCustomerCanUploadDocument(doc, actor.id);
         }
@@ -139,7 +141,7 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             lastName: customer.lastName,
             applicationId: aid,
             applicationName: app.applicationType.name,
-            documentName: doc.requirement.itemLabel,
+            documentName: doc.itemLabel,
             fileId: pendingFile.id,
             originalFilename: dto.filename,
         });
@@ -168,7 +170,8 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const did = this.tid(documentId);
         await this.assertCanAccessApplication(actor, cid, aid);
         const app = await this.loadApplication(cid, aid, ['applicationType']);
-        const doc = await this.loadDocumentRow(cid, aid, did, ['requirement', 'files']);
+        const doc = await this.loadDocumentRow(cid, aid, did, ['files']);
+        this.assertDocumentIsActive(doc);
         if (actor.role === user_role_enum_1.UserRole.CUSTOMER) {
             await this.assertCustomerCanUploadDocument(doc, actor.id);
         }
@@ -187,7 +190,7 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
                 lastName: customer.lastName,
                 applicationId: aid,
                 applicationName: app.applicationType.name,
-                documentName: doc.requirement.itemLabel,
+                documentName: doc.itemLabel,
             });
             if (!dto.storageKey.startsWith(expectedPrefix)) {
                 throw new common_1.BadRequestException('storageKey does not match this document requirement');
@@ -310,7 +313,6 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         const app = await this.loadApplication(cid, aid, [
             'pipelineProgress',
             'applicationDocuments',
-            'applicationDocuments.requirement',
             'applicationDocuments.files',
             'applicationType',
         ]);
@@ -320,6 +322,7 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
     async buildWorkflowPayload(app, customerUserId, uploaderRoleByUserId = new Map(), options) {
         const progressRows = (app.pipelineProgress ?? [])
             .slice()
+            .filter(customer_pipeline_display_1.isCustomerPipelineStepVisible)
             .sort((a, b) => a.stepIndex - b.stepIndex)
             .filter((p) => {
             if (options?.assignedPipelineProgressIds == null) {
@@ -333,14 +336,17 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             ? await this.documentAssignmentService.getAssigneesByDocumentIds(documentIds)
             : new Map();
         const steps = progressRows.map((p) => ({
+            id: p.id,
             stepIndex: p.stepIndex,
             title: p.title,
+            isCustom: p.isCustom,
             completedAt: p.completedAt ?? null,
             assignedTo: assigneesByProgressId.get(p.id) ?? [],
         }));
         const documents = (app.applicationDocuments ?? [])
             .slice()
-            .sort((a, b) => a.requirement.sortOrder - b.requirement.sortOrder)
+            .filter(customer_document_display_1.isCustomerDocumentVisible)
+            .sort((a, b) => a.sortOrder - b.sortOrder)
             .filter((d) => {
             if (options?.assignedDocumentIds == null) {
                 return true;
@@ -373,10 +379,11 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             const row = {
                 id: d.id,
                 status: d.status,
-                requirementKey: d.requirement.requirementKey,
-                sectionTitle: d.requirement.sectionTitle,
-                itemLabel: d.requirement.itemLabel,
-                sortOrder: d.requirement.sortOrder,
+                requirementKey: d.requirementKey,
+                sectionTitle: d.sectionTitle,
+                itemLabel: d.itemLabel,
+                sortOrder: d.sortOrder,
+                isCustom: d.isCustom,
                 uploaded: hasAnyUpload,
                 fileCount: attachmentFiles.length + (d.uploadedAt && d.storageKey ? 1 : 0),
                 originalFilename: d.originalFilename ?? null,
@@ -431,7 +438,7 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         }
         const doc = await this.applicationDocumentRepository.findOne({
             where: { id: documentId, customerApplicationId: applicationId },
-            relations: ['requirement', ...relations],
+            relations: [...relations],
         });
         if (!doc) {
             throw new common_1.NotFoundException(`Document #${documentId} not found for this application`);
@@ -569,6 +576,16 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
             select: ['id', 'role'],
         });
         return new Map(users.map((u) => [u.id, u.role]));
+    }
+    assertDocumentIsActive(doc) {
+        if (!(0, customer_document_display_1.isCustomerDocumentVisible)(doc)) {
+            throw new common_1.BadRequestException('This document requirement was removed for this customer');
+        }
+    }
+    assertPipelineStepIsActive(step) {
+        if (!(0, customer_pipeline_display_1.isCustomerPipelineStepVisible)(step)) {
+            throw new common_1.BadRequestException('This pipeline step was removed for this customer');
+        }
     }
     async assertCustomerCanUploadDocument(doc, customerUserId) {
         if (!doc.uploadedAt || !doc.storageKey) {

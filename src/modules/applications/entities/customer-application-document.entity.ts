@@ -15,7 +15,7 @@ import { User } from '../../users/entities/user.entity';
 import { CustomerApplicationDocumentFile } from './customer-application-document-file.entity';
 
 @Entity('customer_application_documents')
-@Unique(['customerApplicationId', 'documentRequirementId'])
+@Unique(['customerApplicationId', 'requirementKey'])
 export class CustomerApplicationDocument {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -27,12 +27,31 @@ export class CustomerApplicationDocument {
   @JoinColumn({ name: 'customerApplicationId' })
   customerApplication!: unknown;
 
-  @Column()
-  documentRequirementId!: string;
+  @Column({ type: 'uuid', nullable: true })
+  documentRequirementId?: string | null;
 
-  @ManyToOne(() => ApplicationDocumentRequirement, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => ApplicationDocumentRequirement, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'documentRequirementId' })
-  requirement!: ApplicationDocumentRequirement;
+  requirement?: ApplicationDocumentRequirement | null;
+
+  /** Stable slug per customer application (from template or custom_<id>). */
+  @Column({ type: 'varchar', length: 160 })
+  requirementKey!: string;
+
+  @Column({ type: 'varchar', length: 512 })
+  sectionTitle!: string;
+
+  @Column({ type: 'text' })
+  itemLabel!: string;
+
+  @Column({ type: 'int' })
+  sortOrder!: number;
+
+  @Column({ type: 'boolean', default: false })
+  isCustom!: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  isActive!: boolean;
 
   @Column({
     type: 'varchar',

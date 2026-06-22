@@ -101,7 +101,10 @@ let PipelineStepAssignmentService = PipelineStepAssignmentService_1 = class Pipe
             return 0;
         }
         const progressRows = await this.pipelineProgressRepository.find({
-            where: { customerApplicationId: (0, typeorm_2.In)(apps.map((a) => a.id)) },
+            where: {
+                customerApplicationId: (0, typeorm_2.In)(apps.map((a) => a.id)),
+                isActive: true,
+            },
             select: ['id'],
         });
         let assigned = 0;

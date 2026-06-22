@@ -21,8 +21,10 @@ export declare class CustomerApplicationWorkflowController {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -51,8 +53,10 @@ export declare class CustomerApplicationWorkflowController {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -86,8 +90,10 @@ export declare class CustomerApplicationWorkflowController {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -101,8 +107,10 @@ export declare class CustomerApplicationWorkflowController {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];
@@ -116,8 +124,10 @@ export declare class CustomerApplicationWorkflowController {
             name: string;
         };
         pipelineSteps: {
+            id: string;
             stepIndex: number;
             title: string;
+            isCustom: boolean;
             completedAt: Date | null;
             assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
         }[];

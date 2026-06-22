@@ -14,6 +14,8 @@ import {
   isUploadedByCustomerUser,
   mapVisibleCustomerFiles,
 } from './customer-document-visibility';
+import { isCustomerDocumentVisible } from './customer-document-display';
+import { isCustomerPipelineStepVisible } from './customer-pipeline-display';
 import { CustomerApplication } from './entities/customer-application.entity';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { PipelineStepAssignmentService } from './pipeline-step-assignment.service';
@@ -64,7 +66,6 @@ export class CustomerApplicationWorkflowService {
     const app = await this.loadApplication(cid, aid, [
       'pipelineProgress',
       'applicationDocuments',
-      'applicationDocuments.requirement',
       'applicationDocuments.files',
       'applicationType',
     ]);
@@ -141,12 +142,12 @@ export class CustomerApplicationWorkflowService {
     if (!row) {
       throw new NotFoundException(`Pipeline step ${stepIndex} not found for this application`);
     }
+    this.assertPipelineStepIsActive(row);
     row.completedAt = completed ? new Date() : null;
     await this.pipelineProgressRepository.save(row);
     return await this.buildWorkflowPayload(await this.loadApplication(cid, aid, [
       'pipelineProgress',
       'applicationDocuments',
-      'applicationDocuments.requirement',
       'applicationDocuments.files',
       'applicationType',
     ]));
@@ -164,7 +165,8 @@ export class CustomerApplicationWorkflowService {
     const did = this.tid(documentId);
     await this.assertCanAccessApplication(actor, cid, aid);
     const app = await this.loadApplication(cid, aid, ['applicationType']);
-    const doc = await this.loadDocumentRow(cid, aid, did, ['requirement']);
+    const doc = await this.loadDocumentRow(cid, aid, did, []);
+    this.assertDocumentIsActive(doc);
     if (actor.role === UserRole.CUSTOMER) {
       await this.assertCustomerCanUploadDocument(doc, actor.id);
     } else if (actor.role === UserRole.ASSOCIATE) {
@@ -192,7 +194,7 @@ export class CustomerApplicationWorkflowService {
       lastName: customer.lastName,
       applicationId: aid,
       applicationName: app.applicationType.name,
-      documentName: doc.requirement.itemLabel,
+      documentName: doc.itemLabel,
       fileId: pendingFile.id,
       originalFilename: dto.filename,
     });
@@ -235,7 +237,8 @@ export class CustomerApplicationWorkflowService {
     const did = this.tid(documentId);
     await this.assertCanAccessApplication(actor, cid, aid);
     const app = await this.loadApplication(cid, aid, ['applicationType']);
-    const doc = await this.loadDocumentRow(cid, aid, did, ['requirement', 'files']);
+    const doc = await this.loadDocumentRow(cid, aid, did, ['files']);
+    this.assertDocumentIsActive(doc);
     if (actor.role === UserRole.CUSTOMER) {
       await this.assertCustomerCanUploadDocument(doc, actor.id);
     } else if (actor.role === UserRole.ASSOCIATE) {
@@ -254,7 +257,7 @@ export class CustomerApplicationWorkflowService {
         lastName: customer.lastName,
         applicationId: aid,
         applicationName: app.applicationType.name,
-        documentName: doc.requirement.itemLabel,
+        documentName: doc.itemLabel,
       });
       if (!dto.storageKey.startsWith(expectedPrefix)) {
         throw new BadRequestException('storageKey does not match this document requirement');
@@ -414,7 +417,6 @@ export class CustomerApplicationWorkflowService {
     const app = await this.loadApplication(cid, aid, [
       'pipelineProgress',
       'applicationDocuments',
-      'applicationDocuments.requirement',
       'applicationDocuments.files',
       'applicationType',
     ]);
@@ -436,6 +438,7 @@ export class CustomerApplicationWorkflowService {
   ) {
     const progressRows = (app.pipelineProgress ?? [])
       .slice()
+      .filter(isCustomerPipelineStepVisible)
       .sort((a, b) => a.stepIndex - b.stepIndex)
       .filter((p) => {
         if (options?.assignedPipelineProgressIds == null) {
@@ -452,14 +455,17 @@ export class CustomerApplicationWorkflowService {
       : new Map();
 
     const steps = progressRows.map((p) => ({
+      id: p.id,
       stepIndex: p.stepIndex,
       title: p.title,
+      isCustom: p.isCustom,
       completedAt: p.completedAt ?? null,
       assignedTo: assigneesByProgressId.get(p.id) ?? [],
     }));
     const documents = (app.applicationDocuments ?? [])
       .slice()
-      .sort((a, b) => a.requirement.sortOrder - b.requirement.sortOrder)
+      .filter(isCustomerDocumentVisible)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
       .filter((d) => {
         if (options?.assignedDocumentIds == null) {
           return true;
@@ -497,10 +503,11 @@ export class CustomerApplicationWorkflowService {
         const row: Record<string, unknown> = {
           id: d.id,
           status: d.status,
-          requirementKey: d.requirement.requirementKey,
-          sectionTitle: d.requirement.sectionTitle,
-          itemLabel: d.requirement.itemLabel,
-          sortOrder: d.requirement.sortOrder,
+          requirementKey: d.requirementKey,
+          sectionTitle: d.sectionTitle,
+          itemLabel: d.itemLabel,
+          sortOrder: d.sortOrder,
+          isCustom: d.isCustom,
           uploaded: hasAnyUpload,
           fileCount: attachmentFiles.length + (d.uploadedAt && d.storageKey ? 1 : 0),
           originalFilename: d.originalFilename ?? null,
@@ -566,7 +573,7 @@ export class CustomerApplicationWorkflowService {
     }
     const doc = await this.applicationDocumentRepository.findOne({
       where: { id: documentId, customerApplicationId: applicationId },
-      relations: ['requirement', ...relations],
+      relations: [...relations],
     });
     if (!doc) {
       throw new NotFoundException(`Document #${documentId} not found for this application`);
@@ -757,6 +764,18 @@ export class CustomerApplicationWorkflowService {
       select: ['id', 'role'],
     });
     return new Map(users.map((u) => [u.id, u.role]));
+  }
+
+  private assertDocumentIsActive(doc: CustomerApplicationDocument): void {
+    if (!isCustomerDocumentVisible(doc)) {
+      throw new BadRequestException('This document requirement was removed for this customer');
+    }
+  }
+
+  private assertPipelineStepIsActive(step: CustomerApplicationPipelineProgress): void {
+    if (!isCustomerPipelineStepVisible(step)) {
+      throw new BadRequestException('This pipeline step was removed for this customer');
+    }
   }
 
   private async assertCustomerCanUploadDocument(

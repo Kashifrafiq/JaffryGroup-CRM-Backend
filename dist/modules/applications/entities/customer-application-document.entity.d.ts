@@ -6,8 +6,14 @@ export declare class CustomerApplicationDocument {
     id: string;
     customerApplicationId: string;
     customerApplication: unknown;
-    documentRequirementId: string;
-    requirement: ApplicationDocumentRequirement;
+    documentRequirementId?: string | null;
+    requirement?: ApplicationDocumentRequirement | null;
+    requirementKey: string;
+    sectionTitle: string;
+    itemLabel: string;
+    sortOrder: number;
+    isCustom: boolean;
+    isActive: boolean;
     status: CustomerApplicationDocumentStatus;
     storageKey?: string | null;
     bucket?: string | null;

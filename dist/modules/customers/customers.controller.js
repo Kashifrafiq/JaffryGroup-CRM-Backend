@@ -27,6 +27,10 @@ const list_customer_pipeline_steps_query_dto_1 = require("./dto/list-customer-pi
 const update_customer_dto_1 = require("./dto/update-customer.dto");
 const create_customer_application_dto_1 = require("./dto/create-customer-application.dto");
 const update_customer_application_dto_1 = require("./dto/update-customer-application.dto");
+const patch_customer_document_display_dto_1 = require("./dto/patch-customer-document-display.dto");
+const customer_custom_document_dto_1 = require("./dto/customer-custom-document.dto");
+const patch_customer_pipeline_step_display_dto_1 = require("./dto/patch-customer-pipeline-step-display.dto");
+const customer_custom_pipeline_step_dto_1 = require("./dto/customer-custom-pipeline-step.dto");
 let CustomersController = class CustomersController {
     customersService;
     constructor(customersService) {
@@ -55,6 +59,18 @@ let CustomersController = class CustomersController {
     }
     findPipelineSteps(customerId, query, req) {
         return this.customersService.findCustomerPipelineSteps(customerId, this.actor(req), query);
+    }
+    customizeDocument(customerId, applicationId, documentId, dto, req) {
+        return this.customersService.customizeCustomerDocument(customerId, applicationId, documentId, dto, this.actor(req));
+    }
+    addCustomDocument(customerId, applicationId, dto, req) {
+        return this.customersService.addCustomCustomerDocument(customerId, applicationId, dto, this.actor(req));
+    }
+    customizePipelineStep(customerId, applicationId, pipelineProgressId, dto, req) {
+        return this.customersService.customizeCustomerPipelineStep(customerId, applicationId, pipelineProgressId, dto, this.actor(req));
+    }
+    addCustomPipelineStep(customerId, applicationId, dto, req) {
+        return this.customersService.addCustomCustomerPipelineStep(customerId, applicationId, dto, this.actor(req));
     }
     findDocuments(customerId, query, req) {
         return this.customersService.findCustomerDocuments(customerId, this.actor(req), query);
@@ -140,6 +156,52 @@ __decorate([
     __metadata("design:paramtypes", [String, list_customer_pipeline_steps_query_dto_1.ListCustomerPipelineStepsQueryDto, Object]),
     __metadata("design:returntype", void 0)
 ], CustomersController.prototype, "findPipelineSteps", null);
+__decorate([
+    (0, common_1.Patch)(':customerId/applications/:applicationId/documents/:documentId/customization'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Param)('applicationId')),
+    __param(2, (0, common_1.Param)('documentId')),
+    __param(3, (0, common_1.Body)()),
+    __param(4, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, patch_customer_document_display_dto_1.PatchCustomerDocumentDisplayDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "customizeDocument", null);
+__decorate([
+    (0, common_1.Post)(':customerId/applications/:applicationId/custom-documents'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Param)('applicationId')),
+    __param(2, (0, common_1.Body)()),
+    __param(3, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, customer_custom_document_dto_1.CustomerCustomDocumentDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "addCustomDocument", null);
+__decorate([
+    (0, common_1.Patch)(':customerId/applications/:applicationId/pipeline-steps/:pipelineProgressId/customization'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Param)('applicationId')),
+    __param(2, (0, common_1.Param)('pipelineProgressId')),
+    __param(3, (0, common_1.Body)()),
+    __param(4, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, patch_customer_pipeline_step_display_dto_1.PatchCustomerPipelineStepDisplayDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "customizePipelineStep", null);
+__decorate([
+    (0, common_1.Post)(':customerId/applications/:applicationId/custom-pipeline-steps'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Param)('applicationId')),
+    __param(2, (0, common_1.Body)()),
+    __param(3, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, customer_custom_pipeline_step_dto_1.CustomerCustomPipelineStepDto, Object]),
+    __metadata("design:returntype", void 0)
+], CustomersController.prototype, "addCustomPipelineStep", null);
 __decorate([
     (0, common_1.Get)(':customerId/documents'),
     (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),

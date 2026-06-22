@@ -6,10 +6,14 @@ import { JwtActor } from './jwt-actor.type';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { PipelineStepAssignmentService, PipelineStepAssignee } from './pipeline-step-assignment.service';
 import { DocumentAssignmentService, DocumentAssignee } from './document-assignment.service';
+import { CustomerDocumentCustomizationService } from './customer-document-customization.service';
+import { CustomerPipelineCustomizationService } from './customer-pipeline-customization.service';
 import { CreateCustomerDto } from '../users/dto/create-customer.dto';
 import { CustomerApplication } from './entities/customer-application.entity';
 import { ApplicationTypesService } from '../applications/application-types.service';
 import { ApplicationWorkflowService } from '../applications/application-workflow.service';
+import { CustomerApplicationPipelineProgress } from '../applications/entities/customer-application-pipeline-progress.entity';
+import { CustomerApplicationDocument } from '../applications/entities/customer-application-document.entity';
 import { CustomerApplicationWorkflowService } from './customer-application-workflow.service';
 import { CreateCustomerApiDto } from './dto/create-customer-api.dto';
 import { ListCustomersQueryDto } from './dto/list-customers-query.dto';
@@ -19,12 +23,18 @@ import { UpdateCustomerApplicationDto } from './dto/update-customer-application.
 import { InviteCustomerDto } from './dto/invite-customer.dto';
 import { CustomerInvite } from './entities/customer-invite.entity';
 import { CustomerInviteMailService } from './customer-invite-mail.service';
+import { PatchCustomerDocumentDisplayDto } from './dto/patch-customer-document-display.dto';
+import { CustomerCustomDocumentDto } from './dto/customer-custom-document.dto';
+import { PatchCustomerPipelineStepDisplayDto } from './dto/patch-customer-pipeline-step-display.dto';
+import { CustomerCustomPipelineStepDto } from './dto/customer-custom-pipeline-step.dto';
 export declare class CustomersService {
     private readonly customerRepository;
     private readonly applicationRepository;
     private readonly associateProfileRepository;
     private readonly pipelineStepAssignmentService;
     private readonly documentAssignmentService;
+    private readonly customerDocumentCustomizationService;
+    private readonly customerPipelineCustomizationService;
     private readonly customerInviteRepository;
     private readonly userRepository;
     private readonly applicationTypesService;
@@ -34,7 +44,7 @@ export declare class CustomersService {
     private readonly configService;
     private readonly dataSource;
     private readonly logger;
-    constructor(customerRepository: Repository<CustomerProfile>, applicationRepository: Repository<CustomerApplication>, associateProfileRepository: Repository<AssociateProfile>, pipelineStepAssignmentService: PipelineStepAssignmentService, documentAssignmentService: DocumentAssignmentService, customerInviteRepository: Repository<CustomerInvite>, userRepository: Repository<User>, applicationTypesService: ApplicationTypesService, applicationWorkflowService: ApplicationWorkflowService, customerApplicationWorkflowService: CustomerApplicationWorkflowService, customerInviteMailService: CustomerInviteMailService, configService: ConfigService, dataSource: DataSource);
+    constructor(customerRepository: Repository<CustomerProfile>, applicationRepository: Repository<CustomerApplication>, associateProfileRepository: Repository<AssociateProfile>, pipelineStepAssignmentService: PipelineStepAssignmentService, documentAssignmentService: DocumentAssignmentService, customerDocumentCustomizationService: CustomerDocumentCustomizationService, customerPipelineCustomizationService: CustomerPipelineCustomizationService, customerInviteRepository: Repository<CustomerInvite>, userRepository: Repository<User>, applicationTypesService: ApplicationTypesService, applicationWorkflowService: ApplicationWorkflowService, customerApplicationWorkflowService: CustomerApplicationWorkflowService, customerInviteMailService: CustomerInviteMailService, configService: ConfigService, dataSource: DataSource);
     create(dto: CreateCustomerApiDto, createdBy: JwtActor): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>>;
     inviteCustomer(dto: InviteCustomerDto, actor: JwtActor): Promise<{
         inviteSent: true;
@@ -186,6 +196,10 @@ export declare class CustomersService {
     }>;
     findOneDetail(customerId: string, actor: JwtActor): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>>;
     updateCustomer(customerId: string, dto: UpdateCustomerDto, actor: JwtActor): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>>;
+    customizeCustomerPipelineStep(customerId: string, applicationId: string, pipelineProgressId: string, dto: PatchCustomerPipelineStepDisplayDto, actor: JwtActor): Promise<CustomerApplicationPipelineProgress>;
+    addCustomCustomerPipelineStep(customerId: string, applicationId: string, dto: CustomerCustomPipelineStepDto, actor: JwtActor): Promise<CustomerApplicationPipelineProgress>;
+    customizeCustomerDocument(customerId: string, applicationId: string, documentId: string, dto: PatchCustomerDocumentDisplayDto, actor: JwtActor): Promise<CustomerApplicationDocument>;
+    addCustomCustomerDocument(customerId: string, applicationId: string, dto: CustomerCustomDocumentDto, actor: JwtActor): Promise<CustomerApplicationDocument>;
     removeCustomer(customerId: string, actor: JwtActor): Promise<void>;
     addApplication(customerId: string, dto: CreateCustomerApplicationDto, actor: JwtActor): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>>;
     updateApplication(customerId: string, applicationId: string, dto: UpdateCustomerApplicationDto, actor: JwtActor): Promise<Awaited<ReturnType<CustomersService['toCustomerSummary']>>>;

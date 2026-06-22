@@ -25,6 +25,10 @@ import { ListCustomerPipelineStepsQueryDto } from './dto/list-customer-pipeline-
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerApplicationDto } from './dto/create-customer-application.dto';
 import { UpdateCustomerApplicationDto } from './dto/update-customer-application.dto';
+import { PatchCustomerDocumentDisplayDto } from './dto/patch-customer-document-display.dto';
+import { CustomerCustomDocumentDto } from './dto/customer-custom-document.dto';
+import { PatchCustomerPipelineStepDisplayDto } from './dto/patch-customer-pipeline-step-display.dto';
+import { CustomerCustomPipelineStepDto } from './dto/customer-custom-pipeline-step.dto';
 
 type RequestWithJwtUser = {
   user: Pick<User, 'id' | 'email' | 'role'>;
@@ -83,6 +87,74 @@ export class CustomersController {
     @Request() req: RequestWithJwtUser,
   ) {
     return this.customersService.findCustomerPipelineSteps(customerId, this.actor(req), query);
+  }
+
+  @Patch(':customerId/applications/:applicationId/documents/:documentId/customization')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  customizeDocument(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+    @Body() dto: PatchCustomerDocumentDisplayDto,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.customersService.customizeCustomerDocument(
+      customerId,
+      applicationId,
+      documentId,
+      dto,
+      this.actor(req),
+    );
+  }
+
+  @Post(':customerId/applications/:applicationId/custom-documents')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  addCustomDocument(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: CustomerCustomDocumentDto,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.customersService.addCustomCustomerDocument(
+      customerId,
+      applicationId,
+      dto,
+      this.actor(req),
+    );
+  }
+
+  @Patch(':customerId/applications/:applicationId/pipeline-steps/:pipelineProgressId/customization')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  customizePipelineStep(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Param('pipelineProgressId') pipelineProgressId: string,
+    @Body() dto: PatchCustomerPipelineStepDisplayDto,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.customersService.customizeCustomerPipelineStep(
+      customerId,
+      applicationId,
+      pipelineProgressId,
+      dto,
+      this.actor(req),
+    );
+  }
+
+  @Post(':customerId/applications/:applicationId/custom-pipeline-steps')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  addCustomPipelineStep(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: CustomerCustomPipelineStepDto,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.customersService.addCustomCustomerPipelineStep(
+      customerId,
+      applicationId,
+      dto,
+      this.actor(req),
+    );
   }
 
   @Get(':customerId/documents')

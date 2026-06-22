@@ -26,6 +26,8 @@ const customers_service_1 = require("./customers.service");
 const customer_application_workflow_service_1 = require("./customer-application-workflow.service");
 const pipeline_step_assignment_service_1 = require("./pipeline-step-assignment.service");
 const document_assignment_service_1 = require("./document-assignment.service");
+const customer_document_customization_service_1 = require("./customer-document-customization.service");
+const customer_pipeline_customization_service_1 = require("./customer-pipeline-customization.service");
 const customer_invite_mail_service_1 = require("./customer-invite-mail.service");
 let CustomersModule = class CustomersModule {
 };
@@ -53,9 +55,11 @@ exports.CustomersModule = CustomersModule = __decorate([
             customer_application_workflow_service_1.CustomerApplicationWorkflowService,
             pipeline_step_assignment_service_1.PipelineStepAssignmentService,
             document_assignment_service_1.DocumentAssignmentService,
+            customer_document_customization_service_1.CustomerDocumentCustomizationService,
+            customer_pipeline_customization_service_1.CustomerPipelineCustomizationService,
             customer_invite_mail_service_1.CustomerInviteMailService,
         ],
-        exports: [customers_service_1.CustomersService, pipeline_step_assignment_service_1.PipelineStepAssignmentService, document_assignment_service_1.DocumentAssignmentService],
+        exports: [customers_service_1.CustomersService, pipeline_step_assignment_service_1.PipelineStepAssignmentService, document_assignment_service_1.DocumentAssignmentService, customer_document_customization_service_1.CustomerDocumentCustomizationService, customer_pipeline_customization_service_1.CustomerPipelineCustomizationService],
     })
 ], CustomersModule);
 //# sourceMappingURL=customers.module.js.map

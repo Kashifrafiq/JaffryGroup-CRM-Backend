@@ -73,7 +73,7 @@ let DocumentAssignmentService = class DocumentAssignmentService {
         }
         const apps = await this.applicationRepository.find({
             where: { customerId },
-            relations: ['applicationType', 'applicationDocuments', 'applicationDocuments.requirement'],
+            relations: ['applicationType', 'applicationDocuments'],
         });
         const documents = apps.flatMap((app) => (app.applicationDocuments ?? []).map((doc) => ({
             doc,
@@ -82,7 +82,7 @@ let DocumentAssignmentService = class DocumentAssignmentService {
         })));
         for (const assignment of assignments) {
             const matches = documents.filter(({ doc, applicationTypeId, applicationTypeCode }) => {
-                if (doc.requirement.requirementKey !== assignment.requirementKey.trim()) {
+                if (doc.requirementKey !== assignment.requirementKey.trim()) {
                     return false;
                 }
                 if (assignment.applicationTypeId?.trim()) {

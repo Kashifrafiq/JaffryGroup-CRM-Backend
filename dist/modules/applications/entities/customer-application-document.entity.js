@@ -21,6 +21,12 @@ let CustomerApplicationDocument = class CustomerApplicationDocument {
     customerApplication;
     documentRequirementId;
     requirement;
+    requirementKey;
+    sectionTitle;
+    itemLabel;
+    sortOrder;
+    isCustom;
+    isActive;
     status;
     storageKey;
     bucket;
@@ -50,14 +56,38 @@ __decorate([
     __metadata("design:type", Object)
 ], CustomerApplicationDocument.prototype, "customerApplication", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
 ], CustomerApplicationDocument.prototype, "documentRequirementId", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => application_document_requirement_entity_1.ApplicationDocumentRequirement, { onDelete: 'RESTRICT' }),
+    (0, typeorm_1.ManyToOne)(() => application_document_requirement_entity_1.ApplicationDocumentRequirement, { onDelete: 'SET NULL', nullable: true }),
     (0, typeorm_1.JoinColumn)({ name: 'documentRequirementId' }),
-    __metadata("design:type", application_document_requirement_entity_1.ApplicationDocumentRequirement)
+    __metadata("design:type", Object)
 ], CustomerApplicationDocument.prototype, "requirement", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 160 }),
+    __metadata("design:type", String)
+], CustomerApplicationDocument.prototype, "requirementKey", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 512 }),
+    __metadata("design:type", String)
+], CustomerApplicationDocument.prototype, "sectionTitle", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text' }),
+    __metadata("design:type", String)
+], CustomerApplicationDocument.prototype, "itemLabel", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int' }),
+    __metadata("design:type", Number)
+], CustomerApplicationDocument.prototype, "sortOrder", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
+    __metadata("design:type", Boolean)
+], CustomerApplicationDocument.prototype, "isCustom", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], CustomerApplicationDocument.prototype, "isActive", void 0);
 __decorate([
     (0, typeorm_1.Column)({
         type: 'varchar',
@@ -117,6 +147,6 @@ __decorate([
 ], CustomerApplicationDocument.prototype, "updatedAt", void 0);
 exports.CustomerApplicationDocument = CustomerApplicationDocument = __decorate([
     (0, typeorm_1.Entity)('customer_application_documents'),
-    (0, typeorm_1.Unique)(['customerApplicationId', 'documentRequirementId'])
+    (0, typeorm_1.Unique)(['customerApplicationId', 'requirementKey'])
 ], CustomerApplicationDocument);
 //# sourceMappingURL=customer-application-document.entity.js.map

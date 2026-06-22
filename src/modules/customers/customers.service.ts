@@ -17,6 +17,10 @@ import { JwtActor } from './jwt-actor.type';
 import { AssociateProfile } from '../users/entities/associate-profile.entity';
 import { PipelineStepAssignmentService, PipelineStepAssignee } from './pipeline-step-assignment.service';
 import { DocumentAssignmentService, DocumentAssignee } from './document-assignment.service';
+import { CustomerDocumentCustomizationService } from './customer-document-customization.service';
+import { CustomerPipelineCustomizationService } from './customer-pipeline-customization.service';
+import { isCustomerDocumentVisible } from './customer-document-display';
+import { isCustomerPipelineStepVisible } from './customer-pipeline-display';
 import { CreateCustomerDto } from '../users/dto/create-customer.dto';
 import { ApplicationType } from '../applications/entities/application-type.entity';
 import { CustomerApplication } from './entities/customer-application.entity';
@@ -40,6 +44,10 @@ import {
   isUploadedByCustomerUser,
   mapVisibleCustomerFiles,
 } from './customer-document-visibility';
+import { PatchCustomerDocumentDisplayDto } from './dto/patch-customer-document-display.dto';
+import { CustomerCustomDocumentDto } from './dto/customer-custom-document.dto';
+import { PatchCustomerPipelineStepDisplayDto } from './dto/patch-customer-pipeline-step-display.dto';
+import { CustomerCustomPipelineStepDto } from './dto/customer-custom-pipeline-step.dto';
 
 @Injectable()
 export class CustomersService {
@@ -54,6 +62,8 @@ export class CustomersService {
     private readonly associateProfileRepository: Repository<AssociateProfile>,
     private readonly pipelineStepAssignmentService: PipelineStepAssignmentService,
     private readonly documentAssignmentService: DocumentAssignmentService,
+    private readonly customerDocumentCustomizationService: CustomerDocumentCustomizationService,
+    private readonly customerPipelineCustomizationService: CustomerPipelineCustomizationService,
     @InjectRepository(CustomerInvite)
     private readonly customerInviteRepository: Repository<CustomerInvite>,
     @InjectRepository(User)
@@ -105,10 +115,26 @@ export class CustomersService {
       return saved;
     });
 
+    if (dto.pipelineOverrides?.length || dto.customPipelineSteps?.length) {
+      await this.customerPipelineCustomizationService.applyOnCreate(
+        customer.id,
+        dto.pipelineOverrides ?? [],
+        dto.customPipelineSteps ?? [],
+      );
+    }
+
     if (associateId) {
       await this.pipelineStepAssignmentService.assignAllStepsForCustomerToAssociate(
         customer.id,
         associateId,
+      );
+    }
+
+    if (dto.documentOverrides?.length || dto.customDocuments?.length) {
+      await this.customerDocumentCustomizationService.applyOnCreate(
+        customer.id,
+        dto.documentOverrides ?? [],
+        dto.customDocuments ?? [],
       );
     }
 
@@ -312,6 +338,7 @@ export class CustomersService {
           : null,
         pipelineSteps: (app.pipelineProgress ?? [])
           .slice()
+          .filter(isCustomerPipelineStepVisible)
           .sort((a, b) => a.stepIndex - b.stepIndex)
           .map((step) => ({
             stepIndex: step.stepIndex,
@@ -365,7 +392,6 @@ export class CustomersService {
         'applications',
         'applications.applicationType',
         'applications.applicationDocuments',
-        'applications.applicationDocuments.requirement',
         'applications.applicationDocuments.files',
       ],
     });
@@ -383,7 +409,8 @@ export class CustomersService {
       .map((app) => {
         const documents = (app.applicationDocuments ?? [])
           .slice()
-          .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+          .filter(isCustomerDocumentVisible)
+          .sort((d1, d2) => d1.sortOrder - d2.sortOrder)
           .map((doc) => {
             const customerFiles = mapVisibleCustomerFiles(
               doc.files ?? [],
@@ -398,9 +425,10 @@ export class CustomersService {
             const uploadedByMe = customerFiles.length > 0 || legacyUploadedByMe;
             return {
               id: doc.id,
-              requirementKey: doc.requirement.requirementKey,
-              sectionTitle: doc.requirement.sectionTitle,
-              itemLabel: doc.requirement.itemLabel,
+              requirementKey: doc.requirementKey,
+              sectionTitle: doc.sectionTitle,
+              itemLabel: doc.itemLabel,
+              isCustom: doc.isCustom,
               status: doc.status,
               uploaded,
               uploadedByMe,
@@ -521,7 +549,6 @@ export class CustomersService {
         'applications',
         'applications.applicationType',
         'applications.applicationDocuments',
-        'applications.applicationDocuments.requirement',
         'applications.applicationDocuments.files',
       ],
     });
@@ -560,7 +587,8 @@ export class CustomersService {
     const applications = apps.map((app) => {
       const documents = (app.applicationDocuments ?? [])
         .slice()
-        .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+        .filter(isCustomerDocumentVisible)
+        .sort((d1, d2) => d1.sortOrder - d2.sortOrder)
         .filter((doc) => assignedDocumentIdSet.has(doc.id))
         .map((doc) => {
           const attachmentFiles = (doc.files ?? []).filter(
@@ -570,10 +598,11 @@ export class CustomersService {
             attachmentFiles.length > 0 || isDocumentFileUploaded(doc);
           return {
             id: doc.id,
-            requirementKey: doc.requirement.requirementKey,
-            sectionTitle: doc.requirement.sectionTitle,
-            itemLabel: doc.requirement.itemLabel,
-            sortOrder: doc.requirement.sortOrder,
+            requirementKey: doc.requirementKey,
+            sectionTitle: doc.sectionTitle,
+            itemLabel: doc.itemLabel,
+            sortOrder: doc.sortOrder,
+            isCustom: doc.isCustom,
             status: doc.status,
             uploaded,
             fileCount: attachmentFiles.length + (doc.uploadedAt && doc.storageKey ? 1 : 0),
@@ -716,11 +745,14 @@ export class CustomersService {
     const applications = apps.map((app) => {
       const pipelineSteps = (app.pipelineProgress ?? [])
         .slice()
+        .filter(isCustomerPipelineStepVisible)
         .sort((a, b) => a.stepIndex - b.stepIndex)
         .filter((step) => assignedProgressIdSet.has(step.id))
         .map((step) => ({
+          id: step.id,
           stepIndex: step.stepIndex,
           title: step.title,
+          isCustom: step.isCustom,
           completedAt: step.completedAt ?? null,
           assignedTo: assigneesByProgressId.get(step.id) ?? [],
         }));
@@ -761,7 +793,6 @@ export class CustomersService {
         'applications.applicationType',
         'applications.pipelineProgress',
         'applications.applicationDocuments',
-        'applications.applicationDocuments.requirement',
         'applications.applicationDocuments.files',
       ],
     });
@@ -816,6 +847,22 @@ export class CustomersService {
 
     await this.customerRepository.save(customer);
 
+    if (dto.pipelineOverrides?.length || dto.customPipelineSteps?.length) {
+      await this.customerPipelineCustomizationService.applyOnUpdate(
+        customerId,
+        dto.pipelineOverrides ?? [],
+        dto.customPipelineSteps ?? [],
+      );
+    }
+
+    if (dto.documentOverrides?.length || dto.customDocuments?.length) {
+      await this.customerDocumentCustomizationService.applyOnUpdate(
+        customerId,
+        dto.documentOverrides ?? [],
+        dto.customDocuments ?? [],
+      );
+    }
+
     if (dto.documentAssignments?.length) {
       await this.documentAssignmentService.applyAssignmentsOnUpdate(
         customerId,
@@ -824,6 +871,70 @@ export class CustomersService {
     }
 
     return this.findOneDetail(customerId, actor);
+  }
+
+  async customizeCustomerPipelineStep(
+    customerId: string,
+    applicationId: string,
+    pipelineProgressId: string,
+    dto: PatchCustomerPipelineStepDisplayDto,
+    actor: JwtActor,
+  ) {
+    this.assertAdminOrAssociate(actor);
+    await this.assertCanAccessCustomer(actor, customerId);
+    return this.customerPipelineCustomizationService.applySingleOverride(
+      customerId,
+      applicationId,
+      pipelineProgressId,
+      dto,
+    );
+  }
+
+  async addCustomCustomerPipelineStep(
+    customerId: string,
+    applicationId: string,
+    dto: CustomerCustomPipelineStepDto,
+    actor: JwtActor,
+  ) {
+    this.assertAdminOrAssociate(actor);
+    await this.assertCanAccessCustomer(actor, customerId);
+    return this.customerPipelineCustomizationService.addCustomPipelineStep(
+      customerId,
+      applicationId,
+      dto,
+    );
+  }
+
+  async customizeCustomerDocument(
+    customerId: string,
+    applicationId: string,
+    documentId: string,
+    dto: PatchCustomerDocumentDisplayDto,
+    actor: JwtActor,
+  ) {
+    this.assertAdminOrAssociate(actor);
+    await this.assertCanAccessCustomer(actor, customerId);
+    return this.customerDocumentCustomizationService.applySingleOverride(
+      customerId,
+      applicationId,
+      documentId,
+      dto,
+    );
+  }
+
+  async addCustomCustomerDocument(
+    customerId: string,
+    applicationId: string,
+    dto: CustomerCustomDocumentDto,
+    actor: JwtActor,
+  ) {
+    this.assertAdminOrAssociate(actor);
+    await this.assertCanAccessCustomer(actor, customerId);
+    return this.customerDocumentCustomizationService.addCustomDocument(
+      customerId,
+      applicationId,
+      dto,
+    );
   }
 
   async removeCustomer(customerId: string, actor: JwtActor): Promise<void> {
@@ -1407,7 +1518,9 @@ export class CustomersService {
     const applications = (customer.applications ?? [])
         .slice()
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-        .map((a) => ({
+        .map((a) => {
+          const visiblePipelineSteps = (a.pipelineProgress ?? []).filter(isCustomerPipelineStepVisible);
+          return {
           applicationId: a.id,
           applicationType: a.applicationType
             ? {
@@ -1416,15 +1529,17 @@ export class CustomersService {
               }
             : null,
           progress: {
-            completedSteps: (a.pipelineProgress ?? []).filter((p) => !!p.completedAt).length,
-            totalSteps: (a.pipelineProgress ?? []).length,
+            completedSteps: visiblePipelineSteps.filter((p) => !!p.completedAt).length,
+            totalSteps: visiblePipelineSteps.length,
           },
-          pipelineSteps: (a.pipelineProgress ?? [])
+          pipelineSteps: visiblePipelineSteps
             .slice()
             .sort((p1, p2) => p1.stepIndex - p2.stepIndex)
             .map((p) => ({
+              id: p.id,
               stepIndex: p.stepIndex,
               title: p.title,
+              isCustom: p.isCustom,
               completedAt: p.completedAt ?? null,
               assignedTo: [] as PipelineStepAssignee[],
             })),
@@ -1432,7 +1547,8 @@ export class CustomersService {
           documents: includeDocuments
             ? (a.applicationDocuments ?? [])
                 .slice()
-                .sort((d1, d2) => d1.requirement.sortOrder - d2.requirement.sortOrder)
+                .filter(isCustomerDocumentVisible)
+                .sort((d1, d2) => d1.sortOrder - d2.sortOrder)
                 .filter((d) => {
                   if (assignedDocumentIds === null) {
                     return true;
@@ -1441,8 +1557,11 @@ export class CustomersService {
                 })
                 .map((d) => ({
                   id: d.id,
-                  requirementKey: d.requirement.requirementKey,
-                  itemLabel: d.requirement.itemLabel,
+                  requirementKey: d.requirementKey,
+                  sectionTitle: d.sectionTitle,
+                  itemLabel: d.itemLabel,
+                  sortOrder: d.sortOrder,
+                  isCustom: d.isCustom,
                   status: d.status,
                   storageKey: d.storageKey ?? null,
                   bucket: d.bucket ?? null,
@@ -1464,7 +1583,8 @@ export class CustomersService {
                     })),
                 }))
             : undefined,
-      }));
+        };
+      });
 
     return {
       id: customer.id,

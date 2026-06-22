@@ -120,7 +120,10 @@ export class PipelineStepAssignmentService {
     }
 
     const progressRows = await this.pipelineProgressRepository.find({
-      where: { customerApplicationId: In(apps.map((a) => a.id)) },
+      where: {
+        customerApplicationId: In(apps.map((a) => a.id)),
+        isActive: true,
+      },
       select: ['id'],
     });
 
