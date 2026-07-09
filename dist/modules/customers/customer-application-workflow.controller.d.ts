@@ -139,5 +139,39 @@ export declare class CustomerApplicationWorkflowController {
         key: string;
         expiresIn: number;
     }>;
+    deleteDocumentFileForMe(applicationId: string, documentId: string, fileId: string, req: RequestWithJwtUser): Promise<{
+        applicationId: string;
+        applicationType: {
+            id: string;
+            code: string;
+            name: string;
+        };
+        pipelineSteps: {
+            id: string;
+            stepIndex: number;
+            title: string;
+            isCustom: boolean;
+            completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+        }[];
+        documents: Record<string, unknown>[];
+    }>;
+    deleteDocumentFile(customerId: string, applicationId: string, documentId: string, fileId: string, req: RequestWithJwtUser): Promise<{
+        applicationId: string;
+        applicationType: {
+            id: string;
+            code: string;
+            name: string;
+        };
+        pipelineSteps: {
+            id: string;
+            stepIndex: number;
+            title: string;
+            isCustom: boolean;
+            completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+        }[];
+        documents: Record<string, unknown>[];
+    }>;
 }
 export {};

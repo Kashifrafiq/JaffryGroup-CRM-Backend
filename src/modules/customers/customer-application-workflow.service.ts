@@ -10,6 +10,7 @@ import { User } from '../users/entities/user.entity';
 import {
   canCustomerPreviewDocument,
   canCustomerPreviewFile,
+  isAttachmentFileUploaded,
   isFileUploadedByCustomerUser,
   isUploadedByCustomerUser,
   mapVisibleCustomerFiles,
@@ -404,6 +405,57 @@ export class CustomerApplicationWorkflowService {
       throw new BadRequestException('Document file is not uploaded yet');
     }
     return this.s3StorageService.createPresignedGetUrl(doc.storageKey);
+  }
+
+  async deleteDocumentFile(
+    customerId: string,
+    applicationId: string,
+    documentId: string,
+    fileId: string,
+    actor: JwtActor,
+  ) {
+    const cid = this.tid(customerId);
+    const aid = this.tid(applicationId);
+    const did = this.tid(documentId);
+    const fid = this.tid(fileId);
+    await this.assertCanAccessApplication(actor, cid, aid);
+    const doc = await this.loadDocumentRow(cid, aid, did, ['files']);
+    this.assertDocumentIsActive(doc);
+    if (actor.role === UserRole.ASSOCIATE) {
+      await this.assertCanAccessDocument(actor, did);
+    }
+    const file = await this.loadDocumentFileRow(did, fid);
+    if (actor.role === UserRole.CUSTOMER) {
+      await this.assertCustomerCanDeleteFile(doc, file, actor.id);
+    }
+
+    if (file.storageKey?.trim()) {
+      await this.s3StorageService.deleteObject(file.storageKey.trim());
+    }
+    await this.applicationDocumentFileRepository.delete({ id: file.id });
+    this.syncDocumentStatusAfterFileChange(
+      doc,
+      (doc.files ?? []).filter((row) => row.id !== file.id),
+    );
+    await this.applicationDocumentRepository.save(doc);
+
+    if (actor.role === UserRole.CUSTOMER) {
+      return this.getCustomerWorkflow(cid, aid, actor);
+    }
+    return this.getWorkflow(cid, aid, actor);
+  }
+
+  async deleteDocumentFileForCustomerUser(
+    applicationId: string,
+    documentId: string,
+    fileId: string,
+    actor: JwtActor,
+  ) {
+    if (actor.role !== UserRole.CUSTOMER) {
+      throw new ForbiddenException('Only customer can use this endpoint');
+    }
+    const customerId = await this.customerIdForUser(actor.id);
+    return this.deleteDocumentFile(customerId, applicationId, documentId, fileId, actor);
   }
 
   /** Customer portal: pending requirements + only files the customer uploaded. */
@@ -812,6 +864,32 @@ export class CustomerApplicationWorkflowService {
     ]);
     if (!canCustomerPreviewFile(file, customerUserId, roleMap)) {
       throw new ForbiddenException('You can only preview documents you uploaded');
+    }
+  }
+
+  private async assertCustomerCanDeleteFile(
+    doc: CustomerApplicationDocument,
+    file: CustomerApplicationDocumentFile,
+    customerUserId: string,
+  ): Promise<void> {
+    if (!isAttachmentFileUploaded(file)) {
+      return;
+    }
+    const roleMap = await this.uploaderRoleMapForDocuments([doc]);
+    if (!isFileUploadedByCustomerUser(file, customerUserId, roleMap)) {
+      throw new ForbiddenException('You can only delete files you uploaded');
+    }
+  }
+
+  private syncDocumentStatusAfterFileChange(
+    doc: CustomerApplicationDocument,
+    remainingFiles: CustomerApplicationDocumentFile[],
+  ): void {
+    const uploadedFiles = remainingFiles.filter((f) => isAttachmentFileUploaded(f));
+    const hasLegacy = !!doc.uploadedAt && !!doc.storageKey;
+    const hasAny = uploadedFiles.length > 0 || hasLegacy;
+    if (!hasAny && doc.status === CustomerApplicationDocumentStatus.UPLOADED) {
+      doc.status = CustomerApplicationDocumentStatus.PENDING;
     }
   }
 

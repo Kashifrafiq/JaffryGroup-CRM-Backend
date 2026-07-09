@@ -21,6 +21,10 @@ export declare class S3StorageService {
         key: string;
         expiresIn: number;
     }>;
+    deleteObject(objectKey: string): Promise<{
+        deleted: boolean;
+        key: string;
+    }>;
     buildCustomerDocumentsFolder(customerId: string, firstName: string, lastName: string): string;
     buildApplicationFolder(applicationId: string, applicationName: string): string;
     buildRequirementFolder(documentName: string): string;

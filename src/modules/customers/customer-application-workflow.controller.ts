@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -232,6 +233,40 @@ export class CustomerApplicationWorkflowController {
       documentId,
       this.actor(req),
       fileId,
+    );
+  }
+
+  @Delete('me/applications/:applicationId/documents/:documentId/files/:fileId')
+  @Roles(UserRole.CUSTOMER)
+  deleteDocumentFileForMe(
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+    @Param('fileId') fileId: string,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.workflowService.deleteDocumentFileForCustomerUser(
+      applicationId,
+      documentId,
+      fileId,
+      this.actor(req),
+    );
+  }
+
+  @Delete(':customerId/applications/:applicationId/documents/:documentId/files/:fileId')
+  @Roles(UserRole.ADMIN, UserRole.ASSOCIATE)
+  deleteDocumentFile(
+    @Param('customerId') customerId: string,
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+    @Param('fileId') fileId: string,
+    @Request() req: RequestWithJwtUser,
+  ) {
+    return this.workflowService.deleteDocumentFile(
+      customerId,
+      applicationId,
+      documentId,
+      fileId,
+      this.actor(req),
     );
   }
 }

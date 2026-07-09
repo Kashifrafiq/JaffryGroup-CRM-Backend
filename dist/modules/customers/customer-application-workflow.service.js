@@ -303,6 +303,39 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         }
         return this.s3StorageService.createPresignedGetUrl(doc.storageKey);
     }
+    async deleteDocumentFile(customerId, applicationId, documentId, fileId, actor) {
+        const cid = this.tid(customerId);
+        const aid = this.tid(applicationId);
+        const did = this.tid(documentId);
+        const fid = this.tid(fileId);
+        await this.assertCanAccessApplication(actor, cid, aid);
+        const doc = await this.loadDocumentRow(cid, aid, did, ['files']);
+        this.assertDocumentIsActive(doc);
+        if (actor.role === user_role_enum_1.UserRole.ASSOCIATE) {
+            await this.assertCanAccessDocument(actor, did);
+        }
+        const file = await this.loadDocumentFileRow(did, fid);
+        if (actor.role === user_role_enum_1.UserRole.CUSTOMER) {
+            await this.assertCustomerCanDeleteFile(doc, file, actor.id);
+        }
+        if (file.storageKey?.trim()) {
+            await this.s3StorageService.deleteObject(file.storageKey.trim());
+        }
+        await this.applicationDocumentFileRepository.delete({ id: file.id });
+        this.syncDocumentStatusAfterFileChange(doc, (doc.files ?? []).filter((row) => row.id !== file.id));
+        await this.applicationDocumentRepository.save(doc);
+        if (actor.role === user_role_enum_1.UserRole.CUSTOMER) {
+            return this.getCustomerWorkflow(cid, aid, actor);
+        }
+        return this.getWorkflow(cid, aid, actor);
+    }
+    async deleteDocumentFileForCustomerUser(applicationId, documentId, fileId, actor) {
+        if (actor.role !== user_role_enum_1.UserRole.CUSTOMER) {
+            throw new common_1.ForbiddenException('Only customer can use this endpoint');
+        }
+        const customerId = await this.customerIdForUser(actor.id);
+        return this.deleteDocumentFile(customerId, applicationId, documentId, fileId, actor);
+    }
     async getCustomerWorkflow(customerId, applicationId, actor) {
         const cid = this.tid(customerId);
         const aid = this.tid(applicationId);
@@ -608,6 +641,23 @@ let CustomerApplicationWorkflowService = class CustomerApplicationWorkflowServic
         ]);
         if (!(0, customer_document_visibility_1.canCustomerPreviewFile)(file, customerUserId, roleMap)) {
             throw new common_1.ForbiddenException('You can only preview documents you uploaded');
+        }
+    }
+    async assertCustomerCanDeleteFile(doc, file, customerUserId) {
+        if (!(0, customer_document_visibility_1.isAttachmentFileUploaded)(file)) {
+            return;
+        }
+        const roleMap = await this.uploaderRoleMapForDocuments([doc]);
+        if (!(0, customer_document_visibility_1.isFileUploadedByCustomerUser)(file, customerUserId, roleMap)) {
+            throw new common_1.ForbiddenException('You can only delete files you uploaded');
+        }
+    }
+    syncDocumentStatusAfterFileChange(doc, remainingFiles) {
+        const uploadedFiles = remainingFiles.filter((f) => (0, customer_document_visibility_1.isAttachmentFileUploaded)(f));
+        const hasLegacy = !!doc.uploadedAt && !!doc.storageKey;
+        const hasAny = uploadedFiles.length > 0 || hasLegacy;
+        if (!hasAny && doc.status === customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.UPLOADED) {
+            doc.status = customer_application_document_status_enum_1.CustomerApplicationDocumentStatus.PENDING;
         }
     }
     async customerIdForUser(userId) {

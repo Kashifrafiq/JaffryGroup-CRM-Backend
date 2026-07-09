@@ -153,6 +153,40 @@ export declare class CustomerApplicationWorkflowService {
         key: string;
         expiresIn: number;
     }>;
+    deleteDocumentFile(customerId: string, applicationId: string, documentId: string, fileId: string, actor: JwtActor): Promise<{
+        applicationId: string;
+        applicationType: {
+            id: string;
+            code: string;
+            name: string;
+        };
+        pipelineSteps: {
+            id: string;
+            stepIndex: number;
+            title: string;
+            isCustom: boolean;
+            completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+        }[];
+        documents: Record<string, unknown>[];
+    }>;
+    deleteDocumentFileForCustomerUser(applicationId: string, documentId: string, fileId: string, actor: JwtActor): Promise<{
+        applicationId: string;
+        applicationType: {
+            id: string;
+            code: string;
+            name: string;
+        };
+        pipelineSteps: {
+            id: string;
+            stepIndex: number;
+            title: string;
+            isCustom: boolean;
+            completedAt: Date | null;
+            assignedTo: import("./pipeline-step-assignment.service").PipelineStepAssignee[];
+        }[];
+        documents: Record<string, unknown>[];
+    }>;
     getCustomerWorkflow(customerId: string, applicationId: string, actor: JwtActor): Promise<{
         applicationId: string;
         applicationType: {
@@ -206,5 +240,7 @@ export declare class CustomerApplicationWorkflowService {
     private assertCustomerCanUploadDocument;
     private assertCustomerCanPreviewDocument;
     private assertCustomerCanPreviewFile;
+    private assertCustomerCanDeleteFile;
+    private syncDocumentStatusAfterFileChange;
     private customerIdForUser;
 }

@@ -770,7 +770,16 @@ POST /customers/:customerId/applications/:applicationId/documents/:documentId/pr
 POST /customers/:customerId/applications/:applicationId/documents/:documentId/complete
 PATCH /customers/:customerId/applications/:applicationId/documents/:documentId
 GET  /customers/:customerId/applications/:applicationId/documents/:documentId/read-url?fileId=
+DELETE /customers/:customerId/applications/:applicationId/documents/:documentId/files/:fileId
 ```
+
+**Delete one uploaded file** within a document requirement (e.g. remove file 5 of “Bank statements”):
+
+- `fileId` = `documents[].files[].id` from workflow or customer detail
+- Removes the S3 object and the `customer_application_document_files` row
+- If no uploaded files remain, document `status` reverts to `pending`
+- **Admin / assigned associate:** can delete any file on that document
+- **Customer:** `DELETE /customers/me/applications/:applicationId/documents/:documentId/files/:fileId` — only files they uploaded (or abandoned presign rows not yet completed)
 
 Associates without a document assignment get **403** `You are not assigned to this document`.
 

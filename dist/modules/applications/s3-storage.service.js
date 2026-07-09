@@ -109,6 +109,16 @@ let S3StorageService = S3StorageService_1 = class S3StorageService {
         const readUrl = await (0, s3_request_presigner_1.getSignedUrl)(this.client, command, { expiresIn: expiresSeconds });
         return { readUrl, bucket: this.bucket, key: objectKey, expiresIn: expiresSeconds };
     }
+    async deleteObject(objectKey) {
+        if (!this.client || !this.bucket || !objectKey.trim()) {
+            return { deleted: false, key: objectKey };
+        }
+        await this.client.send(new client_s3_1.DeleteObjectCommand({
+            Bucket: this.bucket,
+            Key: objectKey,
+        }));
+        return { deleted: true, key: objectKey };
+    }
     buildCustomerDocumentsFolder(customerId, firstName, lastName) {
         const nameSlug = S3StorageService_1.sanitizePathSegment(`${firstName}_${lastName}`.trim(), 120);
         const idShort = customerId.replace(/-/g, '').slice(0, 8);

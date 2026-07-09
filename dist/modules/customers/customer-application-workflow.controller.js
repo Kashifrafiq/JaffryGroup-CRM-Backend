@@ -69,6 +69,12 @@ let CustomerApplicationWorkflowController = class CustomerApplicationWorkflowCon
     getDocumentReadUrl(customerId, applicationId, documentId, fileId, req) {
         return this.workflowService.getDocumentReadUrl(customerId, applicationId, documentId, this.actor(req), fileId);
     }
+    deleteDocumentFileForMe(applicationId, documentId, fileId, req) {
+        return this.workflowService.deleteDocumentFileForCustomerUser(applicationId, documentId, fileId, this.actor(req));
+    }
+    deleteDocumentFile(customerId, applicationId, documentId, fileId, req) {
+        return this.workflowService.deleteDocumentFile(customerId, applicationId, documentId, fileId, this.actor(req));
+    }
 };
 exports.CustomerApplicationWorkflowController = CustomerApplicationWorkflowController;
 __decorate([
@@ -207,6 +213,29 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], CustomerApplicationWorkflowController.prototype, "getDocumentReadUrl", null);
+__decorate([
+    (0, common_1.Delete)('me/applications/:applicationId/documents/:documentId/files/:fileId'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.CUSTOMER),
+    __param(0, (0, common_1.Param)('applicationId')),
+    __param(1, (0, common_1.Param)('documentId')),
+    __param(2, (0, common_1.Param)('fileId')),
+    __param(3, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, Object]),
+    __metadata("design:returntype", void 0)
+], CustomerApplicationWorkflowController.prototype, "deleteDocumentFileForMe", null);
+__decorate([
+    (0, common_1.Delete)(':customerId/applications/:applicationId/documents/:documentId/files/:fileId'),
+    (0, roles_decorator_1.Roles)(user_role_enum_1.UserRole.ADMIN, user_role_enum_1.UserRole.ASSOCIATE),
+    __param(0, (0, common_1.Param)('customerId')),
+    __param(1, (0, common_1.Param)('applicationId')),
+    __param(2, (0, common_1.Param)('documentId')),
+    __param(3, (0, common_1.Param)('fileId')),
+    __param(4, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String, Object]),
+    __metadata("design:returntype", void 0)
+], CustomerApplicationWorkflowController.prototype, "deleteDocumentFile", null);
 exports.CustomerApplicationWorkflowController = CustomerApplicationWorkflowController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, common_1.Controller)('customers'),

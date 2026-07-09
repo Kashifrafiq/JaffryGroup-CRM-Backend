@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { basename } from 'path';
 
@@ -128,6 +128,20 @@ export class S3StorageService {
     });
     const readUrl = await getSignedUrl(this.client, command, { expiresIn: expiresSeconds });
     return { readUrl, bucket: this.bucket, key: objectKey, expiresIn: expiresSeconds };
+  }
+
+  /** Best-effort delete; no-op when storage is not configured. */
+  async deleteObject(objectKey: string): Promise<{ deleted: boolean; key: string }> {
+    if (!this.client || !this.bucket || !objectKey.trim()) {
+      return { deleted: false, key: objectKey };
+    }
+    await this.client.send(
+      new DeleteObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+      }),
+    );
+    return { deleted: true, key: objectKey };
   }
 
   /**
